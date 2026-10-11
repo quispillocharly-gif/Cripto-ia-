@@ -270,11 +270,74 @@ function appendHistory(rows){
   for(const r of rows){
     if(r.status==='signal' && !existing.has(r.signalKey)){
       const {id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url}=r;
-      state.history.unshift({id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,detectedAt:now()});
+      state.history.unshift({id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,detectedAt:now(),outcome:'open'});
       existing.add(signalKey);
     }
   }
   state.history=state.history.slice(0,300);
+}
+// Conservative, verifiable outcome audit for Binance Spot only.
+// Examine full 1-minute candles strictly AFTER the detection minute; do not look ahead.
+async function verifySpotOutcomes(){
+  const full=state.history.filter(h=>h.kind==='spot' &&
+    (h.outcome===undefined||h.outcome==='open'||h.outcome==='tp1') &&
+    h.symbol && h.detectedAt && $(h.stop)>0 && $(h.tp1)>0 && $(h.tp2)>0);
+  let updates=0,errors=0;
+  for(let i=0;i<Math.min(full.length,36);i+=6){
+    const batch=full.slice(i,i+6);
+    const results=await Promise.allSettled(batch.map(async h=>{
+      const found=Date.parse(h.detectedAt);
+      if(!Number.isFinite(found))return;
+      const first=(Math.floor(found/60000)+1)*60000;
+      const expiry=first+6*60*60000;
+      const end=Math.min(expiry,Date.now()-60000);
+      const start=Math.max(first,Number(h.checkedUntil||0)+1);
+      if(start>end){
+        if(end===expiry && (h.outcome==='open'||!h.outcome)){
+          h.outcome='expired';h.closedAt=new Date(expiry).toISOString();updates++;
+        } else if(end===expiry && h.outcome==='tp1'){
+          h.closedAt=new Date(expiry).toISOString();updates++;
+        }
+        return;
+      }
+      const symbol=h.name || h.symbol+'USDT';
+      const u='https://data-api.binance.vision/api/v3/klines?symbol='+encodeURIComponent(symbol)+
+        '&interval=1m&startTime='+start+'&endTime='+end+'&limit=1000';
+      const ks=await json(u,16000);
+      if(!Array.isArray(ks))throw Error('Sin velas 1m '+symbol);
+      for(const v of ks){
+        const openTime=$(v[0]),closeTime=$(v[6]),high=$(v[2]),low=$(v[3]);
+        if(openTime<start||closeTime>=Date.now()||!high||!low)continue;
+        h.checkedUntil=closeTime;
+        const stop=low<=h.stop,firstTp=high>=h.tp1,secondTp=high>=h.tp2;
+        const at=new Date(closeTime).toISOString();
+        if(!h.tp1At){
+          if(stop && firstTp){
+            h.outcome='ambiguous';h.closedAt=at;h.ambiguousReason='TP y SL dentro de la misma vela de 1 minuto; no se puede conocer cuál ocurrió primero';
+            updates++;break;
+          }
+          if(stop){h.outcome='sl';h.slAt=at;h.closedAt=at;updates++;break;}
+          if(secondTp){h.tp1At=at;h.tp2At=at;h.outcome='tp2';h.closedAt=at;updates++;break;}
+          if(firstTp){h.tp1At=at;h.outcome='tp1';updates++;}
+        }else{
+          if(secondTp && stop){
+            h.outcome='tp1';h.closedAt=at;h.ambiguousReason='Después de TP1 se tocaron TP2 y SL en una misma vela: TP2 no confirmado';
+            updates++;break;
+          }
+          if(secondTp){h.tp2At=at;h.outcome='tp2';h.closedAt=at;updates++;break;}
+          if(stop){h.outcome='tp1';h.slAt=at;h.closedAt=at;updates++;break;}
+        }
+      }
+      if(end===expiry&&!h.closedAt){
+        if(!h.tp1At)h.outcome='expired';
+        else h.outcome='tp1';
+        h.closedAt=new Date(expiry).toISOString();updates++;
+      }
+    }));
+    errors+=results.filter(x=>x.status==='rejected').length;
+    if(i+6<Math.min(full.length,36))await pause(230);
+  }
+  console.log('Auditoría Spot: pendientes',full.length,'actualizaciones',updates,'errores',errors);
 }
 let busy=false;
 async function cycle(){
@@ -293,6 +356,7 @@ async function cycle(){
       console.error(kind,state[kind].error);
     }
   }
+  try{await verifySpotOutcomes();}catch(e){console.warn('Falló auditoría de objetivos:',e.message);}
   state.scans++;state.running=false;state.scanFinished=now();busy=false;persist();
 }
 function reply(res,code,data){
