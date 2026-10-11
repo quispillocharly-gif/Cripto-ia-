@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070f1a">
+<title>CRIPTO IA | Radar 24/7</title>
+<style>
+:root{color-scheme:dark;--bg:#070e19;--card:#101f2d;--card2:#102434;--stroke:#274052;--text:#e9f7ff;--muted:#98b5c5;--green:#2cf1b0;--amber:#ffcb71;--red:#ff7187;--blue:#73bcff}
+*{box-sizing:border-box}body{margin:0;color:var(--text);font:14px/1.5 system-ui,Arial,sans-serif;background:radial-gradient(circle at 0 0,#153b4d77,transparent 35%),radial-gradient(circle at 100% 0,#1a275877,transparent 40%),var(--bg);min-height:100vh}
+main{max-width:1200px;padding:22px 18px 90px;margin:auto}a{color:#8edaff}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:28px}
+.brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:900;letter-spacing:1px}.brandLogo{width:44px;height:44px;border:1px solid #36e7b3;border-radius:14px;color:var(--green);background:#22eea81b;display:grid;place-items:center;font-size:27px}
+.brand small{display:block;letter-spacing:1.3px;font-size:10px;font-weight:600;color:var(--muted)}.status{border:1px solid var(--stroke);padding:8px 12px;border-radius:999px;background:#102535;color:#bdd8e5;font-size:12px}.status.online{border-color:#1c9a72;color:#6bf1bc}.status.error{border-color:#a24b55;color:#ff9caa}
+.hero{display:flex;gap:25px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-bottom:21px}
+.kicker{font-size:11px;color:var(--green);letter-spacing:2px;font-weight:800;margin-bottom:11px}h1{font-size:clamp(28px,5vw,53px);line-height:1.05;letter-spacing:-1.5px;margin:0 0 13px}h1 span{color:var(--green)}.hero p{color:#adc6d4;max-width:680px;margin:0}.warn{font-size:12px;max-width:320px;color:#efcc8f;border-left:3px solid var(--amber);padding:10px 14px;background:#2d271726}
+.panel{background:linear-gradient(150deg,#152c3a,#101b2b);border:1px solid var(--stroke);border-radius:17px;padding:17px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button,input,select{font:inherit}button{cursor:pointer;border:1px solid #355569;color:#c5e0eb;background:#0b1c2b;padding:10px 14px;border-radius:10px;font-weight:750}button.active{background:#21d6a522;color:#67ffca;border-color:#23bd93}button:hover{border-color:#42b7b1}.spacer{flex:1}
+input,select{background:#081522;color:#e7f7ff;border:1px solid #2e4c5d;padding:10px 12px;border-radius:10px;min-width:0}input{width:min(245px,100%)}.subline{display:flex;flex-wrap:wrap;gap:8px 24px;color:var(--muted);font-size:12px;margin-top:16px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}.metric{border:1px solid #274052;background:#0d1d2a;border-radius:15px;padding:16px}.metric b{font-size:26px;line-height:1.2;display:block}.metric small{color:var(--muted)}.metric b.g{color:var(--green)}.metric b.y{color:var(--amber)}
+h2{font-size:20px;margin:24px 0 12px}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{background:linear-gradient(160deg,#172d40,#0c1927);border:1px solid #2b4656;border-radius:16px;padding:17px;min-width:0}.card.signal{border-color:#28be8e}.card.watch{border-color:#977637}.cardHead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.symbol{font-weight:900;font-size:20px;word-break:break-word}.label{font-size:12px;color:var(--muted)}.score{border:2px solid #385469;border-radius:15px;width:60px;height:60px;display:grid;place-items:center;flex-shrink:0;font-size:24px;font-weight:900;color:#e2f4f9;text-align:center;line-height:1}.score small{display:block;font-size:9px;font-weight:500;color:#adc9d4}
+.card.signal .score{border-color:#2ed5a1;color:var(--green)}.card.watch .score{border-color:#b99548;color:var(--amber)}
+.tags{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.tag{border-radius:6px;padding:3px 7px;border:1px solid #456375;font-size:11px;color:#d2ebf3}.signal .tag.state{border-color:#269c72;background:#1a8d6622;color:#72ffca}.watch .tag.state{border-color:#a68133;color:#ffd17e}.reject .tag.state{border-color:#85535e;color:#ffadba}
+.price{font-size:26px;letter-spacing:-.4px;font-weight:900;margin:8px 0 13px;overflow-wrap:anywhere}.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.kv>div{padding:8px;background:#071724;border:1px solid #243d4e;border-radius:9px}.kv small{display:block;color:var(--muted);font-size:10px}.kv b{font-size:13px;overflow-wrap:anywhere}
+.reasons{color:#bad2da;font-size:12px;min-height:40px;margin:12px 0 8px}.risks{color:#f6bf9e;font-size:12px;min-height:22px;margin-bottom:12px}.levels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;padding:10px;background:#081825;border:1px solid #254555;border-radius:10px}.levels small{display:block;color:var(--muted);font-size:10px}.levels strong{font-size:12px;overflow-wrap:anywhere}.footcard{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--muted);margin-top:11px}.empty{border:1px dashed #345465;border-radius:15px;text-align:center;padding:32px;color:#b8cfdb;grid-column:1/-1}.note{font-size:12px;color:#aac7d7;line-height:1.65}
+.history{margin-top:30px}.hrow{display:grid;grid-template-columns:1.3fr .8fr .8fr .8fr;gap:10px;padding:10px 0;border-bottom:1px solid #254052;font-size:12px;color:#bdd6e2}.hrow b{color:#eaf8ff}
+footer{margin-top:33px;border-top:1px solid #254050;padding-top:16px;font-size:12px;color:var(--muted)}.tabrow{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:750px){main{padding:14px 11px 60px}.metrics{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:1fr}.toolbar{align-items:stretch}.toolbar input{flex:1}.levels{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{gap:13px}.warn{max-width:100%}}
+@media(max-width:370px){.kv b{font-size:11px}.metric b{font-size:22px}.card{padding:13px}}
+</style>
+</head>
+<body>
+<main>
+<header><div class="brand"><div class="brandLogo">◈</div><div>CRIPTO <span style="color:var(--green)">IA</span><small>RADAR AUTÓNOMO · 24/7</small></div></div><div id="online" class="status">◉ Conectando servidor…</div></header>
+<section class="hero"><div><div class="kicker">INTELIGENCIA DE MERCADO · PROYECTO INDEPENDIENTE</div><h1>Detecta el impulso.<br><span>Antes de perseguirlo.</span></h1><p>Radar automático de criptomonedas y memecoins. Analiza volumen, momentum, presión compradora y rupturas. El servidor continúa escaneando aunque cierres esta página.</p></div><div class="warn">⚠️ Las puntuaciones son reglas de selección, NO porcentajes de acierto. Las memecoins implican riesgo extremo de pérdida y fraude.</div></section>
+<section class="panel">
+<div class="toolbar">
+  <div class="tabrow"><button id="b-dex" class="active" type="button">◈ Memecoins DEX</button><button id="b-spot" type="button">▤ Binance Spot</button></div>
+  <div class="spacer"></div><input id="search" type="search" placeholder="Buscar moneda o símbolo" aria-label="Buscar moneda">
+  <select id="filter" aria-label="Filtrar señal"><option value="all">Todas</option><option value="signal">Sólo señales</option><option value="watch">En vigilancia</option><option value="reject">Descartadas</option></select>
+  <button id="refresh" type="button">↻ Actualizar pantalla</button>
+</div>
+<div class="subline"><span id="source">Fuente: —</span><span id="last">Última lectura: —</span><span id="scans">Ciclos: 0</span><span>⏱ Análisis del servidor cada 2 min · vista cada 15 s</span></div>
+<div class="subline"><span id="error"></span></div>
+</section>
+<div class="metrics">
+  <div class="metric"><b id="count">—</b><small>Activos analizados</small></div>
+  <div class="metric"><b class="g" id="signals">—</b><small>Señales detectadas</small></div>
+  <div class="metric"><b class="y" id="watching">—</b><small>En vigilancia</small></div>
+  <div class="metric"><b id="discarded">—</b><small>Descartados</small></div>
+</div>
+<h2 id="heading">Oportunidades · DEX</h2>
+<div id="cards" class="cards"><div class="empty">Recuperando señales del servidor…</div></div>
+<section class="history"><h2>Historial de señales</h2><p class="note">Se guarda en el servidor si el alojamiento mantiene su volumen persistente. Registra hallazgos, no operaciones ni ganancias confirmadas.</p><div id="history"><div class="empty">Esperando historial…</div></div></section>
+<footer>CRIPTO IA · Datos públicos de Binance Spot y DEX Screener. Cobertura DEX: perfiles y tokens promocionados, no todo el mercado. Niveles de entrada, SL y TP son referencias matemáticas; el sistema no opera ni promete rentabilidad. Si las fuentes fallan se muestra el último dato con fecha y error, nunca cotizaciones inventadas.</footer>
+</main>
+<script>
+'use strict';
+const el=id=>document.getElementById(id);
+let mode='dex',state=null,history=[],loading=false,failCount=0;
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const price=n=>{n=Number(n);if(!Number.isFinite(n)||n<=0)return '—';if(n>=100)return '$'+n.toLocaleString('en-US',{maximumFractionDigits:2});if(n>=1)return '$'+n.toFixed(3);if(n>=.01)return '$'+n.toFixed(5);return '$'+n.toPrecision(4);};
+const money=n=>{n=Number(n)||0;return n>=1000000?'$'+(n/1e6).toFixed(2)+'M':n>=1000?'$'+(n/1e3).toFixed(1)+'K':'$'+n.toFixed(0);};
+const age=x=>{if(!x)return 'Sin datos';let s=Math.max(0,Math.round((Date.now()-new Date(x).getTime())/1000));return s<60?s+' s':s<3600?Math.floor(s/60)+' min':Math.floor(s/3600)+' h';};
+function goodLink(r){return r.kind==='dex'?('https://dexscreener.com/'+encodeURIComponent(r.chain||'solana')+'/'+encodeURIComponent((r.url||'').split('/').pop()||'')):('https://www.binance.com/en/trade/'+encodeURIComponent(r.symbol||'BTC')+'_USDT');}
+function card(r){
+ const status=r.status==='signal'?'SEÑAL':r.status==='watch'?'VIGILAR':'DESCARTAR';
+ const pos=(r.why||[]).slice(0,3).map(esc).join(' · ')||'Sin confirmación suficiente';
+ const danger=(r.risks||[]).slice(0,2).map(esc).join(' · ')||'No se identificaron alertas en los filtros disponibles';
+ const metric1=r.kind==='dex'?'<div><small>Liquidez</small><b>'+money(r.liquidity)+'</b></div>':'<div><small>RSI 5m</small><b>'+esc(r.rsi)+'</b></div>';
+ const metric2=r.kind==='dex'?'<div><small>Volumen 5m</small><b>'+money(r.volume)+'</b></div>':'<div><small>Volumen x</small><b>'+esc(r.volRatio)+'</b></div>';
+ return '<article class="card '+esc(r.status)+'"><div class="cardHead"><div><div class="symbol">'+esc(r.symbol||r.name)+'</div><div class="label">'+esc(r.name||'')+' · '+esc(r.chain||'')+'</div></div><div class="score">'+esc(r.score)+'<small>PUNTOS</small></div></div><div class="tags"><span class="tag state">'+status+'</span><span class="tag">'+esc(r.kind==='dex'?'DEX · posible subida':'SPOT · velas cerradas')+'</span></div><div class="price">'+price(r.price)+'</div><div class="kv">'+metric1+metric2+'<div><small>Variación reciente</small><b style="color:'+(Number(r.change5)>=0?'#6ef5bf':'#ff91a4')+'">'+Number(r.change5||0).toFixed(2)+'%</b></div></div><div class="reasons">✓ '+pos+'</div><div class="risks">⚠ '+danger+'</div><div class="levels"><div><small>Entrada ref.</small><strong>'+price(r.entry)+'</strong></div><div><small>Stop loss</small><strong>'+price(r.stop)+'</strong></div><div><small>TP 1</small><strong>'+price(r.tp1)+'</strong></div><div><small>TP 2</small><strong>'+price(r.tp2)+'</strong></div></div><div class="footcard"><span>Evaluado hace '+age(r.updatedAt)+'</span><a href="'+esc(goodLink(r))+'" target="_blank" rel="noopener noreferrer">Ver mercado ↗</a></div></article>';
+}
+function render(){
+ if(!state)return;
+ const s=state[mode]||{data:[]},items=Array.isArray(s.data)?s.data:[],search=el('search').value.trim().toLowerCase(),f=el('filter').value;
+ const filtered=items.filter(r=>(f==='all'||r.status===f)&&(r.name||'').toLowerCase().includes(search)||(f==='all'||r.status===f)&&(r.symbol||'').toLowerCase().includes(search));
+ el('count').textContent=items.length;el('signals').textContent=items.filter(x=>x.status==='signal').length;el('watching').textContent=items.filter(x=>x.status==='watch').length;el('discarded').textContent=items.filter(x=>x.status==='reject').length;
+ el('heading').textContent=mode==='dex'?'Oportunidades · Memecoins DEX':'Oportunidades · Binance Spot';
+ el('source').textContent='Fuente: '+(s.source||'Sin datos');el('last').textContent='Última lectura: '+age(s.updatedAt)+(s.updatedAt?' · '+new Date(s.updatedAt).toLocaleString('es-EC'):'');el('scans').textContent='Ciclos: '+state.scans;
+ el('error').textContent=s.error?'⚠ '+s.error+(s.updatedAt?' · Último resultado conservado':''):'✓ Datos recibidos correctamente';
+ el('error').style.color=s.error?'#ffa0a8':'#77ebbb';
+ el('cards').innerHTML=filtered.length?filtered.slice(0,64).map(card).join(''):'<div class="empty">No hay monedas con estas condiciones. '+(s.error?'La fuente todavía no respondió.':'Prueba otro filtro o espera el siguiente ciclo.')+'</div>';
+ const h=history.filter(x=>x.kind===mode).slice(0,18);
+ el('history').innerHTML=h.length?h.map(x=>'<div class="hrow"><div><b>'+esc(x.symbol||x.name)+'</b><div>'+esc(x.chain||'')+'</div></div><div>Entrada<br><b>'+price(x.entry)+'</b></div><div>Puntos<br><b>'+esc(x.score)+'</b></div><div>'+new Date(x.detectedAt).toLocaleString('es-EC')+'</div></div>').join(''):'<div class="empty">Aún no hay señales registradas en este radar.</div>';
+}
+async function reload(){
+ if(loading)return;loading=true;el('refresh').disabled=true;
+ try {
+  const r=await fetch('/api/results',{cache:'no-store',signal:AbortSignal.timeout(16000)});
+  if(!r.ok)throw Error('Servidor HTTP '+r.status);
+  state=await r.json();failCount=0;
+  el('online').textContent='● SERVIDOR ACTIVO'+(state.running?' · analizando':'');
+  el('online').className='status online';
+  const h=await fetch('/api/history',{cache:'no-store',signal:AbortSignal.timeout(8000)});
+  if(h.ok){const j=await h.json();history=Array.isArray(j.data)?j.data:[];}
+  render();
+ }catch(e){
+  failCount++;el('online').className='status error';el('online').textContent='● Conexión no disponible';
+  if(!state)el('cards').innerHTML='<div class="empty">No es posible contactar al servidor. '+esc(e.message)+'</div>';
+ }finally{loading=false;el('refresh').disabled=false;}
+}
+function choose(m){mode=m;el('b-dex').classList.toggle('active',m==='dex');el('b-spot').classList.toggle('active',m==='spot');render();}
+el('b-dex').onclick=()=>choose('dex');el('b-spot').onclick=()=>choose('spot');
+el('search').oninput=render;el('filter').onchange=render;el('refresh').onclick=reload;
+reload();setInterval(reload,15000);
+</script>
+</body></html>
