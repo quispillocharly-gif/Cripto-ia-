@@ -47,20 +47,20 @@ function evaluateDex(p){
   else if(vol5>900 && accel>=1){score+=9;why.push('Volumen estable');}else{score-=8;risks.push('Volumen sin aceleración');}
   if(count>=14 && ratio>=1.3){score+=18;why.push('Presión compradora x'+ratio.toFixed(1));}
   else if(count>=9 && ratio>=1){score+=7;}else{score-=11;risks.push('Ventas dominantes o poca actividad');}
-  if(m5>=0.6 && m5<=9){score+=16;why.push('Impulso controlado 5m');}
-  else if(m5>16){score-=21;risks.push('Movimiento 5m demasiado extendido');}
+  if(m5>=0.25 && m5<=4.5){score+=18;why.push('Impulso temprano 5m');}
+  else if(m5>7){score-=24;risks.push('Movimiento 5m ya extendido');}
   else if(m5<-.5){score-=14;risks.push('Caída en 5m');}
-  if(h1>=1.7 && h1<=35){score+=12;why.push('Tendencia de 1h favorable');}
-  else if(h1>75){score-=17;risks.push('Subida 1h extrema');}
+  if(h1>=0.6 && h1<=18){score+=12;why.push('Tendencia de 1h todavía moderada');}
+  else if(h1>30){score-=18;risks.push('Subida 1h ya avanzada');}
   else if(h1<0){score-=8;}
-  if(h6>220){score-=12;risks.push('Gran extensión en 6h');}
+  if(h6>95){score-=16;risks.push('Acumulación de subida 6h elevada');}
   if(!$(p.pairCreatedAt)){blocked=true;risks.push('Edad de pool desconocida');}
   else if(age<.5){blocked=true;score-=25;risks.push('Pool menor de 30 min');}
   else if(age<3){score-=7;risks.push('Pool nuevo: alto riesgo');}
   if(!price || !liq || !count){blocked=true;risks.push('Cotización/actividad incompleta');}
   // Descubrimiento por perfiles y boosts es sesgado: nunca interpretar score como probabilidad.
   score=clamp(Math.round(score-6),0,100);
-  const signal=!blocked && score>=75 && accel>=1.25 && ratio>=1.2 && m5>=.4 && m5<=12;
+  const signal=!blocked && score>=75 && accel>=1.25 && ratio>=1.2 && m5>=.25 && m5<=4.5 && h1<23;
   const status=signal?'signal':(!blocked&&score>=52?'watch':'reject');
   const slpct=clamp(Math.max(.045,Math.abs(m5)/100*1.5),.045,.14);
   const risk=price*slpct;
@@ -188,18 +188,18 @@ function evaluateSpot(raw,t){
   let score=12,why=[],risks=[];
   if(e20.at(-1)>e50.at(-1) && last.c>e20.at(-1)){score+=22;why.push('EMA20 > EMA50');}else{score-=9;risks.push('Tendencia no confirmada');}
   if(slope>.05){score+=10;why.push('EMA20 ascendiendo');}else if(slope<0)score-=8;
-  if(R>=52 && R<=68){score+=16;why.push('RSI de impulso controlado');}
-  else if(R>76){score-=17;risks.push('RSI muy alto');}else if(R<45)score-=10;
+  if(R>=49 && R<=65){score+=16;why.push('RSI de impulso temprano');}
+  else if(R>70){score-=19;risks.push('RSI sobrecalentado');}else if(R<45)score-=10;
   if(vr>=1.6){score+=20;why.push('Volumen x'+vr.toFixed(1));}else if(vr>=1.15){score+=10;}else{score-=6;risks.push('Falta volumen');}
   if(breakout){score+=18;why.push('Ruptura de máximos 20 velas');}
   else if((peak-last.c)/peak<.008){score+=6;why.push('Cerca de resistencia');}else score-=3;
-  if(momentum>.2 && momentum<3.2){score+=11;why.push('Impulso 3 velas');}
-  else if(momentum>7){score-=17;risks.push('Precio extendido');}
+  if(momentum>.12 && momentum<1.9){score+=11;why.push('Impulso temprano 3 velas');}
+  else if(momentum>3.1){score-=17;risks.push('Precio avanzado, posible persecución');}
   else if(momentum<-.2)score-=6;
   const blocked=!A || $(t.quoteVolume)<300000;
   if(blocked)risks.push('Mercado ilíquido o volatilidad insuficiente');
   score=clamp(Math.round(score),0,100);
-  const signal=!blocked && score>=75 && breakout && vr>=1.15 && R<75;
+  const signal=!blocked && score>=75 && breakout && vr>=1.15 && R<=67 && momentum<2.8;
   const status=signal?'signal':(!blocked&&score>=50?'watch':'reject');
   const risk=Math.max(1.5*A,last.c*.009);
   const id='spot:'+t.symbol;
