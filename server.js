@@ -60,7 +60,7 @@ function evaluateDex(p){
   if(!price || !liq || !count){blocked=true;risks.push('Cotización/actividad incompleta');}
   // Descubrimiento por perfiles y boosts es sesgado: nunca interpretar score como probabilidad.
   score=clamp(Math.round(score-6),0,100);
-  const signal=!blocked && score>=75 && accel>=1.25 && ratio>=1.2 && m5>=.25 && m5<=4.5 && h1<23;
+  const signal=!blocked && score>=75 && accel>=1.25 && ratio>=1.2 && m5>=.25 && m5<=4.5 && h1<23 && age>=.5;
   const status=signal?'signal':(!blocked&&score>=52?'watch':'reject');
   const slpct=clamp(Math.max(.045,Math.abs(m5)/100*1.5),.045,.14);
   const risk=price*slpct;
@@ -181,6 +181,8 @@ function evaluateSpot(raw,t){
   const bs=raw.map(b=>({o:$(b[1]),h:$(b[2]),l:$(b[3]),c:$(b[4]),v:$(b[5]),time:$(b[6])})).filter(b=>b.c>0 && b.h>0 && b.time<=Date.now());
   if(bs.length<75)return null;
   const last=bs[bs.length-1],older=bs.slice(0,-1),cs=bs.map(b=>b.c);
+  // Exclude delisted/inactive markets whose most recent closed candle is stale.
+  if(Date.now()-last.time>15*60*1000 || last.time>Date.now()+1000)return null;
   const e20=ema(cs,20),e50=ema(cs,50),R=rsi(cs),A=atr(bs);
   const volumeBase=older.slice(-20).reduce((a,b)=>a+b.v,0)/20,vr=volumeBase?last.v/volumeBase:0;
   const peak=Math.max(...older.slice(-20).map(b=>b.h)),breakout=last.c>peak;
@@ -196,7 +198,9 @@ function evaluateSpot(raw,t){
   if(momentum>.12 && momentum<1.9){score+=11;why.push('Impulso temprano 3 velas');}
   else if(momentum>3.1){score-=17;risks.push('Precio avanzado, posible persecución');}
   else if(momentum<-.2)score-=6;
-  const blocked=!A || $(t.quoteVolume)<300000;
+  const priceDeviation=Math.abs($(t.lastPrice)-last.c)/last.c;
+  const blocked=!A || $(t.quoteVolume)<300000 || !Number.isFinite(priceDeviation) || priceDeviation>.025;
+  if(priceDeviation>.025)risks.push('Precio y vela inconsistentes: descartar');
   if(blocked)risks.push('Mercado ilíquido o volatilidad insuficiente');
   score=clamp(Math.round(score),0,100);
   const signal=!blocked && score>=75 && breakout && vr>=1.15 && R<=67 && momentum<2.8;
