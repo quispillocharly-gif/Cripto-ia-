@@ -52,7 +52,7 @@ footer{margin-top:33px;border-top:1px solid #254050;padding-top:16px;font-size:1
 </div>
 <h2 id="heading">Oportunidades · DEX</h2>
 <div id="cards" class="cards"><div class="empty">Recuperando señales del servidor…</div></div><div style="text-align:center;margin:18px 0"><button id="more" type="button" style="display:none">Mostrar más criptomonedas ↓</button></div>
-<section class="history"><h2>Reevaluación automática</h2><p class="note">Las monedas descartadas se vuelven a comprobar. Si mejoran, regresan a vigilancia o a señal. Son cambios de clasificación, no garantías de rentabilidad.</p><div id="events"></div><h2>Historial de señales</h2><p class="note">Se guarda en el servidor si el alojamiento mantiene su volumen persistente. Registra hallazgos, no operaciones ni ganancias confirmadas.</p><div id="history"><div class="empty">Esperando historial…</div></div></section>
+<section class="history"><h2>Reevaluación automática</h2><p class="note">Las monedas descartadas se vuelven a comprobar. Si mejoran, regresan a vigilancia o a señal. Son cambios de clasificación, no garantías de rentabilidad.</p><div id="events"></div><h2>Resultados comprobados</h2><div id="performance" class="panel" style="margin:10px 0"></div><h2>Historial de señales</h2><p class="note">Las señales Spot se verifican con velas de 1 minuto posteriores a su detección, durante hasta 6 horas. Si TP y SL coinciden en una vela, el resultado es ambiguo. No es beneficio realizado: no incluye comisiones ni deslizamiento. Las señales DEX todavía no tienen comprobación de objetivos.</p><div id="history"><div class="empty">Esperando historial…</div></div></section>
 <footer>CRIPTO IA · Datos públicos de Binance Spot, DEX Screener y GeckoTerminal. Se consultan nuevos pools y fuentes parciales; no cubre todos los tokens de todas las cadenas. Niveles de entrada, SL y TP son referencias matemáticas; el sistema no opera ni promete rentabilidad. Si las fuentes fallan se muestra el último dato con fecha y error, nunca cotizaciones inventadas.</footer>
 </main>
 <script>
@@ -90,8 +90,16 @@ function render(){
  el('cards').innerHTML=filtered.length?filtered.slice(0,visible).map(card).join(''):'<div class="empty">No hay monedas con estas condiciones. '+(s.error?'La fuente todavía no respondió.':'Prueba otro filtro o espera el siguiente ciclo.')+'</div>';
  const changes=(Array.isArray(state.events)?state.events:[]).filter(x=>x.kind===mode).slice(0,12);
  el('events').innerHTML=changes.length?changes.map(x=>'<div class="hrow"><div><b>'+esc(x.symbol)+'</b></div><div>'+esc(x.from==='reject'?'Descartada':'Vigilancia/señal')+'</div><div><b>'+esc(x.to==='signal'?'SEÑAL':x.to==='watch'?'VIGILAR':'DESCARTADA')+'</b></div><div>'+new Date(x.at).toLocaleString('es-EC')+'</div></div>').join(''):'<div class="note">Aún no hay cambios de clasificación registrados.</div>';
- const h=history.filter(x=>x.kind===mode).slice(0,18);
- el('history').innerHTML=h.length?h.map(x=>'<div class="hrow"><div><b>'+esc(x.symbol||x.name)+'</b><div>'+esc(x.chain||'')+'</div></div><div>Entrada<br><b>'+price(x.entry)+'</b></div><div>Puntos<br><b>'+esc(x.score)+'</b></div><div>'+new Date(x.detectedAt).toLocaleString('es-EC')+'</div></div>').join(''):'<div class="empty">Aún no hay señales registradas en este radar.</div>';
+ const hx=history.filter(x=>x.kind===mode),h=hx.slice(0,25);
+ const tp2=hx.filter(x=>x.outcome==='tp2').length,tp1=hx.filter(x=>x.outcome==='tp1'&&x.closedAt).length,
+       sl=hx.filter(x=>x.outcome==='sl').length,amb=hx.filter(x=>x.outcome==='ambiguous').length,
+       expired=hx.filter(x=>x.outcome==='expired').length;
+ const tested=tp1+tp2+sl+expired;
+ el('performance').innerHTML=mode==='dex'
+   ?'<div class="note">Los objetivos de memecoins DEX todavía no están auditados automáticamente. No se presentan victorias estimadas como resultados reales.</div>'
+   :'<div class="kv"><div><small>TP1 confirmado</small><b style="color:#6af6bb">'+tp1+'</b></div><div><small>TP2 confirmado</small><b style="color:#6af6bb">'+tp2+'</b></div><div><small>SL confirmado</small><b style="color:#ff9db0">'+sl+'</b></div></div><p class="note">Auditadas: '+tested+' · Ambiguas: '+amb+' · Vencidas sin TP/SL: '+expired+'. Muestra pequeña, no representa precisión futura ni beneficio ejecutable.</p>';
+ const outcomeLabel=x=>x.outcome==='tp2'?'✅ TP2 verificado':x.outcome==='tp1'?(x.closedAt?'✅ TP1 verificado':'✓ TP1 tocado; TP2 pendiente'):x.outcome==='sl'?'❌ SL verificado':x.outcome==='ambiguous'?'⚠️ Ambiguo':x.outcome==='expired'?'⌛ Expiró sin objetivo':x.kind==='dex'?'Sin auditoría DEX':'Comprobación pendiente';
+ el('history').innerHTML=h.length?h.map(x=>'<div class="hrow"><div><b>'+esc(x.symbol||x.name)+'</b><div>'+esc(x.chain||'')+'</div></div><div>Entrada<br><b>'+price(x.entry)+'</b></div><div>'+esc(outcomeLabel(x))+'<br><b>'+esc(x.score)+' pts</b></div><div>'+new Date(x.detectedAt).toLocaleString('es-EC')+'</div></div>').join(''):'<div class="empty">Aún no hay señales registradas en este radar.</div>';
 }
 async function reload(){
  if(loading)return;loading=true;el('refresh').disabled=true;
