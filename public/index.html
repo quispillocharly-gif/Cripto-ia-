@@ -33,7 +33,7 @@ footer{margin-top:33px;border-top:1px solid #254050;padding-top:16px;font-size:1
 <body>
 <main>
 <header><div class="brand"><div class="brandLogo">◈</div><div>CRIPTO <span style="color:var(--green)">IA</span><small>RADAR AUTÓNOMO · 24/7</small></div></div><div id="online" class="status">◉ Conectando servidor…</div></header>
-<section class="hero"><div><div class="kicker">INTELIGENCIA DE MERCADO · PROYECTO INDEPENDIENTE</div><h1>Detecta el impulso.<br><span>Antes de perseguirlo.</span></h1><p>Radar automático de criptomonedas y memecoins. Analiza volumen, momentum, presión compradora y rupturas. El servidor continúa escaneando aunque cierres esta página.</p></div><div class="warn">⚠️ Las puntuaciones son reglas de selección, NO porcentajes de acierto. Las memecoins implican riesgo extremo de pérdida y fraude.</div></section>
+<section class="hero"><div><div class="kicker">INTELIGENCIA DE MERCADO · PROYECTO INDEPENDIENTE</div><h1>Detecta el impulso.<br><span>Antes de perseguirlo.</span></h1><p>Radar automático de criptomonedas y memecoins. Analiza volumen, momentum, presión compradora y rupturas. El motor puede seguir escaneando aunque cierres esta página, cuando el alojamiento esté activo.</p></div><div class="warn">⚠️ Las puntuaciones son reglas de selección, NO porcentajes de acierto. Las memecoins implican riesgo extremo de pérdida y fraude.</div></section>
 <section class="panel">
 <div class="toolbar">
   <div class="tabrow"><button id="b-dex" class="active" type="button">◈ Memecoins DEX</button><button id="b-spot" type="button">▤ Binance Spot</button></div>
@@ -41,7 +41,7 @@ footer{margin-top:33px;border-top:1px solid #254050;padding-top:16px;font-size:1
   <select id="filter" aria-label="Filtrar señal"><option value="all">Todas</option><option value="signal">Sólo señales</option><option value="watch">En vigilancia</option><option value="reject">Descartadas</option></select>
   <button id="refresh" type="button">↻ Actualizar pantalla</button>
 </div>
-<div class="subline"><span id="source">Fuente: —</span><span id="last">Última lectura: —</span><span id="scans">Ciclos: 0</span><span>⏱ Análisis del servidor cada 2 min · vista cada 15 s</span></div>
+<div class="subline"><span id="source">Fuente: —</span><span id="last">Última lectura: —</span><span id="scans">Ciclos: 0</span><span>⏱ Servidor: 2 min / GitHub: ~5 min · vista cada 15 s</span></div>
 <div class="subline"><span id="error"></span></div>
 </section>
 <div class="metrics">
@@ -88,13 +88,16 @@ function render(){
 async function reload(){
  if(loading)return;loading=true;el('refresh').disabled=true;
  try {
-  const r=await fetch('/api/results',{cache:'no-store',signal:AbortSignal.timeout(16000)});
+  const staticMode=location.hostname.endsWith('github.io');
+  const r=await fetch(staticMode?'./data/results.json':'/api/results',{cache:'no-store',signal:AbortSignal.timeout(16000)});
   if(!r.ok)throw Error('Servidor HTTP '+r.status);
   state=await r.json();failCount=0;
   el('online').textContent='● SERVIDOR ACTIVO'+(state.running?' · analizando':'');
   el('online').className='status online';
-  const h=await fetch('/api/history',{cache:'no-store',signal:AbortSignal.timeout(8000)});
-  if(h.ok){const j=await h.json();history=Array.isArray(j.data)?j.data:[];}
+  if(staticMode){history=Array.isArray(state.history)?state.history:[];} else {
+    const h=await fetch('/api/history',{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    if(h.ok){const j=await h.json();history=Array.isArray(j.data)?j.data:[];}
+  }
   render();
  }catch(e){
   failCount++;el('online').className='status error';el('online').textContent='● Conexión no disponible';
