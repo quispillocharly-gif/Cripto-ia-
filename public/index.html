@@ -33,12 +33,12 @@ footer{margin-top:33px;border-top:1px solid #254050;padding-top:16px;font-size:1
 <body>
 <main>
 <header><div class="brand"><div class="brandLogo">◈</div><div>CRIPTO <span style="color:var(--green)">IA</span><small>RADAR AUTÓNOMO · 24/7</small></div></div><div id="online" class="status">◉ Conectando servidor…</div></header>
-<section class="hero"><div><div class="kicker">INTELIGENCIA DE MERCADO · PROYECTO INDEPENDIENTE</div><h1>Detecta el impulso.<br><span>Antes de perseguirlo.</span></h1><p>Radar automático de criptomonedas y memecoins. Analiza volumen, momentum, presión compradora y rupturas. El motor puede seguir escaneando aunque cierres esta página, cuando el alojamiento esté activo.</p></div><div class="warn">⚠️ Las puntuaciones son reglas de selección, NO porcentajes de acierto. Las memecoins implican riesgo extremo de pérdida y fraude.</div></section>
+<section class="hero"><div><div class="kicker">INTELIGENCIA DE MERCADO · PROYECTO INDEPENDIENTE</div><h1>Detecta el impulso.<br><span>Antes de perseguirlo.</span></h1><p>Radar general en expansión: descubre pares recién creados, vuelve a revisar monedas descartadas y prioriza impulsos tempranos sin perseguir subidas extremas. GitHub Actions busca oportunidades aproximadamente cada cinco minutos aunque cierres la página; las ejecuciones pueden retrasarse.</p></div><div class="warn">⚠️ Las puntuaciones son reglas de selección, NO porcentajes de acierto. Las memecoins implican riesgo extremo de pérdida y fraude.</div></section>
 <section class="panel">
 <div class="toolbar">
   <div class="tabrow"><button id="b-dex" class="active" type="button">◈ Memecoins DEX</button><button id="b-spot" type="button">▤ Binance Spot</button></div>
   <div class="spacer"></div><input id="search" type="search" placeholder="Buscar moneda o símbolo" aria-label="Buscar moneda">
-  <select id="filter" aria-label="Filtrar señal"><option value="all">Todas</option><option value="signal">Sólo señales</option><option value="watch">En vigilancia</option><option value="reject">Descartadas</option></select>
+  <select id="filter" aria-label="Filtrar señal"><option value="all">Todas</option><option value="signal">Sólo señales</option><option value="watch">En vigilancia</option><option value="reject">Descartadas</option><option value="new">Nuevas 24 h</option><option value="reconsidered">Recuperadas</option></select>
   <button id="refresh" type="button">↻ Actualizar pantalla</button>
 </div>
 <div class="subline"><span id="source">Fuente: —</span><span id="last">Última lectura: —</span><span id="scans">Ciclos: 0</span><span>⏱ Servidor: 2 min / GitHub: ~5 min · vista cada 15 s</span></div>
@@ -51,37 +51,45 @@ footer{margin-top:33px;border-top:1px solid #254050;padding-top:16px;font-size:1
   <div class="metric"><b id="discarded">—</b><small>Descartados</small></div>
 </div>
 <h2 id="heading">Oportunidades · DEX</h2>
-<div id="cards" class="cards"><div class="empty">Recuperando señales del servidor…</div></div>
-<section class="history"><h2>Historial de señales</h2><p class="note">Se guarda en el servidor si el alojamiento mantiene su volumen persistente. Registra hallazgos, no operaciones ni ganancias confirmadas.</p><div id="history"><div class="empty">Esperando historial…</div></div></section>
-<footer>CRIPTO IA · Datos públicos de Binance Spot y DEX Screener. Cobertura DEX: perfiles y tokens promocionados, no todo el mercado. Niveles de entrada, SL y TP son referencias matemáticas; el sistema no opera ni promete rentabilidad. Si las fuentes fallan se muestra el último dato con fecha y error, nunca cotizaciones inventadas.</footer>
+<div id="cards" class="cards"><div class="empty">Recuperando señales del servidor…</div></div><div style="text-align:center;margin:18px 0"><button id="more" type="button" style="display:none">Mostrar más criptomonedas ↓</button></div>
+<section class="history"><h2>Reevaluación automática</h2><p class="note">Las monedas descartadas se vuelven a comprobar. Si mejoran, regresan a vigilancia o a señal. Son cambios de clasificación, no garantías de rentabilidad.</p><div id="events"></div><h2>Historial de señales</h2><p class="note">Se guarda en el servidor si el alojamiento mantiene su volumen persistente. Registra hallazgos, no operaciones ni ganancias confirmadas.</p><div id="history"><div class="empty">Esperando historial…</div></div></section>
+<footer>CRIPTO IA · Datos públicos de Binance Spot, DEX Screener y GeckoTerminal. Se consultan nuevos pools y fuentes parciales; no cubre todos los tokens de todas las cadenas. Niveles de entrada, SL y TP son referencias matemáticas; el sistema no opera ni promete rentabilidad. Si las fuentes fallan se muestra el último dato con fecha y error, nunca cotizaciones inventadas.</footer>
 </main>
 <script>
 'use strict';
 const el=id=>document.getElementById(id);
-let mode='dex',state=null,history=[],loading=false,failCount=0;
+let mode='dex',state=null,history=[],loading=false,failCount=0,visible=60;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const price=n=>{n=Number(n);if(!Number.isFinite(n)||n<=0)return '—';if(n>=100)return '$'+n.toLocaleString('en-US',{maximumFractionDigits:2});if(n>=1)return '$'+n.toFixed(3);if(n>=.01)return '$'+n.toFixed(5);return '$'+n.toPrecision(4);};
 const money=n=>{n=Number(n)||0;return n>=1000000?'$'+(n/1e6).toFixed(2)+'M':n>=1000?'$'+(n/1e3).toFixed(1)+'K':'$'+n.toFixed(0);};
 const age=x=>{if(!x)return 'Sin datos';let s=Math.max(0,Math.round((Date.now()-new Date(x).getTime())/1000));return s<60?s+' s':s<3600?Math.floor(s/60)+' min':Math.floor(s/3600)+' h';};
-function goodLink(r){return r.kind==='dex'?('https://dexscreener.com/'+encodeURIComponent(r.chain||'solana')+'/'+encodeURIComponent((r.url||'').split('/').pop()||'')):('https://www.binance.com/en/trade/'+encodeURIComponent(r.symbol||'BTC')+'_USDT');}
+function goodLink(r){
+  const u=String(r.url||'');
+  if(/^https:\/\/(?:www\.)?(?:geckoterminal\.com|dexscreener\.com|binance\.com)\//i.test(u))return u;
+  return r.kind==='dex'?'https://dexscreener.com/':'https://www.binance.com/en/markets/overview';
+}
 function card(r){
  const status=r.status==='signal'?'SEÑAL':r.status==='watch'?'VIGILAR':'DESCARTAR';
  const pos=(r.why||[]).slice(0,3).map(esc).join(' · ')||'Sin confirmación suficiente';
  const danger=(r.risks||[]).slice(0,2).map(esc).join(' · ')||'No se identificaron alertas en los filtros disponibles';
  const metric1=r.kind==='dex'?'<div><small>Liquidez</small><b>'+money(r.liquidity)+'</b></div>':'<div><small>RSI 5m</small><b>'+esc(r.rsi)+'</b></div>';
  const metric2=r.kind==='dex'?'<div><small>Volumen 5m</small><b>'+money(r.volume)+'</b></div>':'<div><small>Volumen x</small><b>'+esc(r.volRatio)+'</b></div>';
- return '<article class="card '+esc(r.status)+'"><div class="cardHead"><div><div class="symbol">'+esc(r.symbol||r.name)+'</div><div class="label">'+esc(r.name||'')+' · '+esc(r.chain||'')+'</div></div><div class="score">'+esc(r.score)+'<small>PUNTOS</small></div></div><div class="tags"><span class="tag state">'+status+'</span><span class="tag">'+esc(r.kind==='dex'?'DEX · posible subida':'SPOT · velas cerradas')+'</span></div><div class="price">'+price(r.price)+'</div><div class="kv">'+metric1+metric2+'<div><small>Variación reciente</small><b style="color:'+(Number(r.change5)>=0?'#6ef5bf':'#ff91a4')+'">'+Number(r.change5||0).toFixed(2)+'%</b></div></div><div class="reasons">✓ '+pos+'</div><div class="risks">⚠ '+danger+'</div><div class="levels"><div><small>Entrada ref.</small><strong>'+price(r.entry)+'</strong></div><div><small>Stop loss</small><strong>'+price(r.stop)+'</strong></div><div><small>TP 1</small><strong>'+price(r.tp1)+'</strong></div><div><small>TP 2</small><strong>'+price(r.tp2)+'</strong></div></div><div class="footcard"><span>Evaluado hace '+age(r.updatedAt)+'</span><a href="'+esc(goodLink(r))+'" target="_blank" rel="noopener noreferrer">Ver mercado ↗</a></div></article>';
+ return '<article class="card '+esc(r.status)+'"><div class="cardHead"><div><div class="symbol">'+esc(r.symbol||r.name)+'</div><div class="label">'+esc(r.name||'')+' · '+esc(r.chain||'')+'</div></div><div class="score">'+esc(r.score)+'<small>PUNTOS</small></div></div><div class="tags"><span class="tag state">'+status+'</span><span class="tag">'+esc(r.kind==='dex'?'DEX · posible subida':'SPOT · velas cerradas')+'</span>'+(r.reconsidered?'<span class="tag" style="border-color:#18ab80;color:#68edbe">↺ Recuperada</span>':'')+(r.isNew?'<span class="tag">✧ Nueva &lt;24 h</span>':'')+'</div><div class="price">'+price(r.price)+'</div><div class="kv">'+metric1+metric2+'<div><small>Variación reciente</small><b style="color:'+(Number(r.change5)>=0?'#6ef5bf':'#ff91a4')+'">'+Number(r.change5||0).toFixed(2)+'%</b></div></div><div class="reasons">✓ '+pos+'</div><div class="risks">⚠ '+danger+'</div><div class="levels"><div><small>Entrada ref.</small><strong>'+price(r.entry)+'</strong></div><div><small>Stop loss</small><strong>'+price(r.stop)+'</strong></div><div><small>TP 1</small><strong>'+price(r.tp1)+'</strong></div><div><small>TP 2</small><strong>'+price(r.tp2)+'</strong></div></div><div class="footcard"><span>Evaluado hace '+age(r.updatedAt)+'</span><a href="'+esc(goodLink(r))+'" target="_blank" rel="noopener noreferrer">Ver mercado ↗</a></div></article>';
 }
 function render(){
  if(!state)return;
  const s=state[mode]||{data:[]},items=Array.isArray(s.data)?s.data:[],search=el('search').value.trim().toLowerCase(),f=el('filter').value;
- const filtered=items.filter(r=>(f==='all'||r.status===f)&&(r.name||'').toLowerCase().includes(search)||(f==='all'||r.status===f)&&(r.symbol||'').toLowerCase().includes(search));
+ const filtered=items.filter(r=>(f==='all'||r.status===f||(f==='new'&&r.isNew)||(f==='reconsidered'&&r.reconsidered))&&((r.name||'').toLowerCase().includes(search)||(r.symbol||'').toLowerCase().includes(search)));
+ el('more').style.display=filtered.length>visible?'inline-block':'none';
+ el('more').textContent='Mostrar más · '+Math.min(visible,filtered.length)+' de '+filtered.length;
  el('count').textContent=items.length;el('signals').textContent=items.filter(x=>x.status==='signal').length;el('watching').textContent=items.filter(x=>x.status==='watch').length;el('discarded').textContent=items.filter(x=>x.status==='reject').length;
  el('heading').textContent=mode==='dex'?'Oportunidades · Memecoins DEX':'Oportunidades · Binance Spot';
  el('source').textContent='Fuente: '+(s.source||'Sin datos');el('last').textContent='Última lectura: '+age(s.updatedAt)+(s.updatedAt?' · '+new Date(s.updatedAt).toLocaleString('es-EC'):'');el('scans').textContent='Ciclos: '+state.scans;
  el('error').textContent=s.error?'⚠ '+s.error+(s.updatedAt?' · Último resultado conservado':''):'✓ Datos recibidos correctamente';
  el('error').style.color=s.error?'#ffa0a8':'#77ebbb';
- el('cards').innerHTML=filtered.length?filtered.slice(0,64).map(card).join(''):'<div class="empty">No hay monedas con estas condiciones. '+(s.error?'La fuente todavía no respondió.':'Prueba otro filtro o espera el siguiente ciclo.')+'</div>';
+ el('cards').innerHTML=filtered.length?filtered.slice(0,visible).map(card).join(''):'<div class="empty">No hay monedas con estas condiciones. '+(s.error?'La fuente todavía no respondió.':'Prueba otro filtro o espera el siguiente ciclo.')+'</div>';
+ const changes=(Array.isArray(state.events)?state.events:[]).filter(x=>x.kind===mode).slice(0,12);
+ el('events').innerHTML=changes.length?changes.map(x=>'<div class="hrow"><div><b>'+esc(x.symbol)+'</b></div><div>'+esc(x.from==='reject'?'Descartada':'Vigilancia/señal')+'</div><div><b>'+esc(x.to==='signal'?'SEÑAL':x.to==='watch'?'VIGILAR':'DESCARTADA')+'</b></div><div>'+new Date(x.at).toLocaleString('es-EC')+'</div></div>').join(''):'<div class="note">Aún no hay cambios de clasificación registrados.</div>';
  const h=history.filter(x=>x.kind===mode).slice(0,18);
  el('history').innerHTML=h.length?h.map(x=>'<div class="hrow"><div><b>'+esc(x.symbol||x.name)+'</b><div>'+esc(x.chain||'')+'</div></div><div>Entrada<br><b>'+price(x.entry)+'</b></div><div>Puntos<br><b>'+esc(x.score)+'</b></div><div>'+new Date(x.detectedAt).toLocaleString('es-EC')+'</div></div>').join(''):'<div class="empty">Aún no hay señales registradas en este radar.</div>';
 }
@@ -104,9 +112,10 @@ async function reload(){
   if(!state)el('cards').innerHTML='<div class="empty">No es posible contactar al servidor. '+esc(e.message)+'</div>';
  }finally{loading=false;el('refresh').disabled=false;}
 }
-function choose(m){mode=m;el('b-dex').classList.toggle('active',m==='dex');el('b-spot').classList.toggle('active',m==='spot');render();}
+function choose(m){mode=m;visible=60;el('b-dex').classList.toggle('active',m==='dex');el('b-spot').classList.toggle('active',m==='spot');render();}
 el('b-dex').onclick=()=>choose('dex');el('b-spot').onclick=()=>choose('spot');
-el('search').oninput=render;el('filter').onchange=render;el('refresh').onclick=reload;
+el('search').oninput=()=>{visible=60;render();};el('filter').onchange=()=>{visible=60;render();};el('refresh').onclick=reload;
+el('more').onclick=()=>{visible+=60;render();};
 reload();setInterval(reload,15000);
 </script>
 </body></html>
