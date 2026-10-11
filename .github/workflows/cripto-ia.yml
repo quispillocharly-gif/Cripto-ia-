@@ -66,8 +66,19 @@ jobs:
               await github.rest.repos.getPages({ owner: context.repo.owner, repo: context.repo.repo });
               core.setOutput('enabled', 'true');
             } catch (error) {
-              if (error.status === 404 || error.status === 403) {
-                core.warning('Activa Pages en Settings > Pages > Source: GitHub Actions para publicar la interfaz.');
+              if (error.status === 404) {
+                try {
+                  await github.rest.repos.createPagesSite({
+                    owner: context.repo.owner, repo: context.repo.repo, build_type: 'workflow'
+                  });
+                  core.info('GitHub Pages activado automáticamente.');
+                  core.setOutput('enabled', 'true');
+                } catch (enableError) {
+                  core.warning('No se pudo activar GitHub Pages: ' + enableError.message);
+                  core.setOutput('enabled', 'false');
+                }
+              } else if (error.status === 403) {
+                core.warning('Acceso insuficiente a GitHub Pages.');
                 core.setOutput('enabled', 'false');
               } else {
                 throw error;
