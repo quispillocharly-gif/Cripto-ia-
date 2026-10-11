@@ -9,12 +9,12 @@ const $ = (n) => Number(n) || 0;
 const clamp = (x,a,b) => Math.min(b,Math.max(a,x));
 const pause = ms => new Promise(r => setTimeout(r,ms));
 const now = () => new Date().toISOString();
-const origins = {spot:'Binance · velas 5m cerradas',dex:'DEX Screener · perfiles/boosts (cobertura parcial)'};
+const origins = {spot:'Binance · mercado USDT con examen rotativo',dex:'DEX Screener + GeckoTerminal · nuevos pools y tendencias (cobertura parcial)'};
 let state = {
-  version:'1.0.0',startedAt:now(),running:false,scans:0,scanStarted:null,scanFinished:null,
+  version:'2.0.0',startedAt:now(),running:false,scans:0,scanStarted:null,scanFinished:null,
   spot:{updatedAt:null,source:origins.spot,error:'Esperando primer escaneo',data:[]},
   dex:{updatedAt:null,source:origins.dex,error:'Esperando primer escaneo',data:[]},
-  history:[]
+  history:[],seen:{},events:[]
 };
 try {
   const saved=JSON.parse(fs.readFileSync(STORE,'utf8'));
@@ -23,10 +23,12 @@ try {
     if(Array.isArray(saved.history)) state.history=saved.history.slice(0,300);
     state.scans=Number(saved.scans)||0;
     state.scanFinished=saved.scanFinished||null;
+    if(saved.seen && typeof saved.seen==='object')state.seen=saved.seen;
+    if(Array.isArray(saved.events))state.events=saved.events.slice(0,100);
   }
 } catch(e) {if(e.code!=='ENOENT') console.warn('Historial no disponible:',e.message);}
 function persist(){
-  try {fs.mkdirSync(path.dirname(STORE),{recursive:true});fs.writeFileSync(STORE+'.tmp',JSON.stringify({spot:state.spot,dex:state.dex,history:state.history,scans:state.scans,scanFinished:state.scanFinished,running:false}));fs.renameSync(STORE+'.tmp',STORE);}
+  try {fs.mkdirSync(path.dirname(STORE),{recursive:true});fs.writeFileSync(STORE+'.tmp',JSON.stringify({spot:state.spot,dex:state.dex,history:state.history,seen:state.seen,events:state.events,scans:state.scans,scanFinished:state.scanFinished,running:false}));fs.renameSync(STORE+'.tmp',STORE);}
   catch(e){console.warn('No se guardó el estado:',e.message);}
 }
 async function json(url,timeout=15000){
@@ -67,37 +69,101 @@ function evaluateDex(p){
   return {id,kind:'dex',chain,name:(p.baseToken&&p.baseToken.name)||'Token',symbol:(p.baseToken&&p.baseToken.symbol)||'?',price,
     score,status,why,risks,entry:price,stop:price-risk,tp1:price+1.6*risk,tp2:price+2.4*risk,
     volume:vol5,liquidity:liq,change5:m5,change1:h1,accel:+accel.toFixed(2),buyRatio:+ratio.toFixed(2),
-    url:'https://dexscreener.com/'+encodeURIComponent(chain)+'/'+encodeURIComponent(p.pairAddress||addr),
+    isNew:age>=0&&age<24,newHours:Math.round(age*10)/10,origin:p.origin||'DEX Screener',
+    url:p.viewUrl||('https://dexscreener.com/'+encodeURIComponent(chain)+'/'+encodeURIComponent(p.pairAddress||addr)),
     signalKey:id+':'+Math.floor(Date.now()/900000),updatedAt:now()};
 }
+const DEX_NETWORKS=['solana','base','ethereum','bsc','arbitrum','polygon','avalanche','optimism','sui','ton'];
+const GEO_TO_CHAIN={eth:'ethereum',polygon_pos:'polygon',avax:'avalanche'};
+function geckoToPair(pool,origin){
+  const a=pool?.attributes||{};
+  const network=pool.relationships?.network?.data?.id||String(pool.id||'').split('_')[0];
+  const chain=GEO_TO_CHAIN[network]||network;
+  const tokenRef=pool.relationships?.base_token?.data?.id||'';
+  const address=String(tokenRef).replace(/^[^_]*_/,'');
+  if(!tokenRef||!address||!a.address||!$(a.base_token_price_usd))return null;
+  const name=String(a.name||'Token / Pair').split(' / ')[0]||'Token';
+  return {chainId:chain,pairAddress:a.address,baseToken:{address,name,symbol:name},priceUsd:a.base_token_price_usd,
+    liquidity:{usd:a.reserve_in_usd},volume:{m5:a.volume_usd?.m5,h1:a.volume_usd?.h1},
+    txns:{m5:a.transactions?.m5},priceChange:{m5:a.price_change_percentage?.m5,
+      h1:a.price_change_percentage?.h1,h6:a.price_change_percentage?.h6},
+    pairCreatedAt:Date.parse(a.pool_created_at||'')||0,origin,
+    viewUrl:'https://www.geckoterminal.com/'+encodeURIComponent(network)+'/pools/'+encodeURIComponent(a.address)};
+}
+async function scanGecko(){
+  const base='https://api.geckoterminal.com/api/v2';
+  const rotating=['solana','base','eth','bsc','arbitrum','polygon_pos','avax','optimism','sui','ton'];
+  const i=(state.scans*4)%rotating.length;
+  const selected=[...new Set(['solana','base',rotating[i],rotating[(i+1)%rotating.length]])];
+  const paths=['/networks/new_pools','/networks/trending_pools',...selected.map(x=>'/networks/'+x+'/new_pools')];
+  const rows=[];let succeeded=0;
+  // GeckoTerminal public API: ~10 requests per minute. 6 serial queries.
+  for(let n=0;n<paths.length;n++){
+    try{
+      const data=await json(base+paths[n]+'?include=base_token',15000);
+      if(Array.isArray(data?.data)){
+        succeeded++;
+        for(const pool of data.data){
+          const p=geckoToPair(pool,paths[n].includes('new_pools')?'GeckoTerminal · nuevos pools':'GeckoTerminal · tendencias');
+          if(p)rows.push(p);
+        }
+      }
+    }catch(e){console.warn('Gecko',paths[n],String(e.message||e));}
+    if(n<paths.length-1)await pause(1250);
+  }
+  console.log('GeckoTerminal consultas',succeeded,'/',paths.length,'pares',rows.length);
+  return rows;
+}
 async function scanDex(){
-  const urls=['https://api.dexscreener.com/token-profiles/latest/v1','https://api.dexscreener.com/token-boosts/latest/v1','https://api.dexscreener.com/token-boosts/top/v1'];
+  const urls=[
+    'https://api.dexscreener.com/token-profiles/latest/v1',
+    'https://api.dexscreener.com/token-boosts/latest/v1',
+    'https://api.dexscreener.com/token-boosts/top/v1',
+    'https://api.dexscreener.com/community-takeovers/latest/v1',
+    'https://api.dexscreener.com/token-profiles/recent-updates/v1'
+  ];
   const res=await Promise.allSettled(urls.map(u=>json(u)));
-  const refs=res.filter(x=>x.status==='fulfilled' && Array.isArray(x.value)).flatMap(x=>x.value);
-  if(!refs.length)throw Error('No se recibieron perfiles/tokens DEX');
+  const refs=res.filter(x=>x.status==='fulfilled'&&Array.isArray(x.value)).flatMap(x=>x.value);
   const groups=new Map();
-  for(const t of refs){
-    if(!['solana','base','ethereum'].includes(t.chainId) || !t.tokenAddress)continue;
-    let a=groups.get(t.chainId)||new Set();a.add(t.tokenAddress);groups.set(t.chainId,a);
+  function add(chain,address){
+    if(!DEX_NETWORKS.includes(chain)||!address)return;
+    const a=groups.get(chain)||new Set();a.add(address);groups.set(chain,a);
   }
-  const req=[];
-  for(const [chain,addresses] of groups){
-    const xs=[...addresses].slice(0,90);
-    for(let i=0;i<xs.length;i+=30) req.push('https://api.dexscreener.com/tokens/v1/'+chain+'/'+xs.slice(i,i+30).map(encodeURIComponent).join(','));
+  for(const t of refs)add(t.chainId,t.tokenAddress);
+  // Recheck previously discarded and watched tokens even when absent from latest listings.
+  const seenRows=Object.entries(state.seen||{}).filter(([id,v])=>id.startsWith('dex:')&&
+    Date.now()-Date.parse(v.lastSeenAt||'1970-01-01')<72*3600000).sort((a,b)=>{
+      const priority=v=>(v?.lastStatus==='reject'?0:v?.lastStatus==='watch'?1:2);
+      return priority(a[1])-priority(b[1])||Date.parse(a[1].lastCheckedAt||'1970-01-01')-Date.parse(b[1].lastCheckedAt||'1970-01-01');
+    });
+  for(const [id] of seenRows.slice(0,65)){
+    const m=id.match(/^dex:([^:]+):(.+)$/);
+    if(m)add(m[1],m[2]);
   }
-  if(!req.length)throw Error('Sin tokens válidos para las redes admitidas');
-  const raw=await Promise.allSettled(req.map(u=>json(u)));
-  const all=raw.filter(x=>x.status==='fulfilled' && Array.isArray(x.value)).flatMap(x=>x.value);
-  if(!all.length)throw Error('No se pudieron consultar pares DEX');
+  const requests=[];
+  for(const [chain,set] of groups){
+    const xs=[...set].slice(0,180);
+    for(let n=0;n<xs.length;n+=30)requests.push('https://api.dexscreener.com/tokens/v1/'+encodeURIComponent(chain)+'/'+xs.slice(n,n+30).map(encodeURIComponent).join(','));
+  }
+  let fetched=[];
+  for(let i=0;i<requests.length;i+=8){
+    const rs=await Promise.allSettled(requests.slice(i,i+8).map(x=>json(x)));
+    fetched.push(...rs.filter(x=>x.status==='fulfilled'&&Array.isArray(x.value)).flatMap(x=>x.value));
+    if(i+8<requests.length)await pause(500);
+  }
+  const gecko=await scanGecko();
   const best=new Map();
-  for(const p of all){
-    if(!p || !p.baseToken || !p.baseToken.address || !['solana','base','ethereum'].includes(p.chainId))continue;
+  for(const p of [...fetched.map(x=>({...x,origin:'DEX Screener · perfiles/comunidad'})),...gecko]){
+    if(!p?.baseToken?.address||!DEX_NETWORKS.includes(p.chainId))continue;
     const key=p.chainId+':'+p.baseToken.address;
-    if(!best.has(key) || $(best.get(key).liquidity?.usd)<$(p.liquidity?.usd)) best.set(key,p);
+    const old=best.get(key);
+    if(!old||$(old.liquidity?.usd)<$(p.liquidity?.usd))best.set(key,p);
   }
-  const evaluated=[...best.values()].map(evaluateDex).sort((a,b)=>b.score-a.score);
-  if(!evaluated.length)throw Error('DEX no devolvió datos evaluables');
-  return evaluated.slice(0,100);
+  if(!best.size)throw Error('No se recibieron datos DEX evaluables');
+  const rows=[...best.values()].map(evaluateDex).sort((a,b)=>b.score-a.score);
+  // Return every evaluated token, not only the 100 highest scores.
+  console.log('DEX descubierto',refs.length,'consultado',requests.length,'Gecko',gecko.length,'únicos',rows.length);
+  return rows.slice(0,650);
 }
 function ema(cs,n){const alpha=2/(n+1);let v=cs[0];return cs.map(x=>v=v+alpha*(x-v));}
 function rsi(cs,n=14){
@@ -130,7 +196,7 @@ function evaluateSpot(raw,t){
   if(momentum>.2 && momentum<3.2){score+=11;why.push('Impulso 3 velas');}
   else if(momentum>7){score-=17;risks.push('Precio extendido');}
   else if(momentum<-.2)score-=6;
-  const blocked=!A || $(t.quoteVolume)<5000000;
+  const blocked=!A || $(t.quoteVolume)<300000;
   if(blocked)risks.push('Mercado ilíquido o volatilidad insuficiente');
   score=clamp(Math.round(score),0,100);
   const signal=!blocked && score>=75 && breakout && vr>=1.15 && R<75;
@@ -139,35 +205,65 @@ function evaluateSpot(raw,t){
   const id='spot:'+t.symbol;
   return {id,kind:'spot',chain:'Binance Spot',symbol:t.symbol.replace(/USDT$/,''),name:t.symbol,price:$(t.lastPrice)||last.c,
     score,status,why,risks,entry:last.c,stop:last.c-risk,tp1:last.c+1.7*risk,tp2:last.c+2.5*risk,
-    volume:$(t.quoteVolume),change5:momentum,change1:$(t.priceChangePercent),volRatio:+vr.toFixed(2),rsi:+R.toFixed(1),
+    volume:$(t.quoteVolume),change5:momentum,change1:$(t.priceChangePercent),volRatio:+vr.toFixed(2),rsi:+R.toFixed(1),origin:'Binance Spot',
     url:'https://www.binance.com/en/trade/'+encodeURIComponent(t.symbol.replace(/USDT$/,''))+'_USDT',
     signalKey:id+':'+last.time,updatedAt:now(),candleClosedAt:new Date(last.time).toISOString()};
 }
 async function scanSpot(){
-  const tickers=await json('https://data-api.binance.vision/api/v3/ticker/24hr',18000);
+  const tickers=await json('https://data-api.binance.vision/api/v3/ticker/24hr',20000);
   if(!Array.isArray(tickers))throw Error('Listado Binance inválido');
   const excluded=new Set(['USDC','USDP','FDUSD','TUSD','DAI','BUSD','EUR','TRY','BRL','USDE','USD1','PAXG','XAUT']);
   const valid=tickers.filter(t=>{
     const s=t.symbol||'',base=s.replace(/USDT$/,'');
-    return s.endsWith('USDT') && !excluded.has(base) && !/(UP|DOWN|BULL|BEAR)$/.test(base) && $(t.quoteVolume)>=5000000;
+    return s.endsWith('USDT')&&!excluded.has(base)&&!/(UP|DOWN|BULL|BEAR)$/.test(base)&&$(t.quoteVolume)>=300000;
   });
-  const byVol=[...valid].sort((a,b)=>$(b.quoteVolume)-$(a.quoteVolume)).slice(0,24);
-  const byChange=[...valid].filter(t=>$(t.priceChangePercent)>0 && $(t.priceChangePercent)<35)
-    .sort((a,b)=>$(b.priceChangePercent)-$(a.priceChangePercent)).slice(0,18);
-  const unique=[...new Map([...byVol,...byChange].map(t=>[t.symbol,t])).values()];
+  // Evaluate all accessible tickers cheaply, then deeper candles on a rotating broad shortlist.
+  const byVol=[...valid].sort((a,b)=>$(b.quoteVolume)-$(a.quoteVolume)).slice(0,65);
+  const byChange=[...valid].filter(t=>$(t.priceChangePercent)>-9&&$(t.priceChangePercent)<26)
+    .sort((a,b)=>$(b.priceChangePercent)-$(a.priceChangePercent)).slice(0,45);
+  const ranked=[...valid].sort((a,b)=>$(b.count)-$(a.count));
+  const rotating=ranked.slice((state.scans*80)%Math.max(1,ranked.length),(state.scans*80)%Math.max(1,ranked.length)+80);
+  const selected=[...new Map([...byVol,...byChange,...rotating].map(t=>[t.symbol,t])).values()].slice(0,175);
   let out=[],fail=0;
-  for(let i=0;i<unique.length;i+=7){
-    const batch=unique.slice(i,i+7);
-    const rs=await Promise.allSettled(batch.map(t=>json('https://data-api.binance.vision/api/v3/klines?symbol='+encodeURIComponent(t.symbol)+'&interval=5m&limit=110',15000)));
-    for(let j=0;j<batch.length;j++){
-      if(rs[j].status==='fulfilled' && Array.isArray(rs[j].value)){
-        const v=evaluateSpot(rs[j].value,batch[j]);if(v)out.push(v);else fail++;
+  for(let i=0;i<selected.length;i+=9){
+    const part=selected.slice(i,i+9);
+    const rs=await Promise.allSettled(part.map(t=>json('https://data-api.binance.vision/api/v3/klines?symbol='+encodeURIComponent(t.symbol)+'&interval=5m&limit=110',17000)));
+    for(let j=0;j<part.length;j++){
+      if(rs[j].status==='fulfilled'&&Array.isArray(rs[j].value)){
+        const v=evaluateSpot(rs[j].value,part[j]);if(v)out.push(v);else fail++;
       }else fail++;
     }
-    if(i+7<unique.length)await pause(350);
+    if(i+9<selected.length)await pause(260);
   }
-  if(!out.length)throw Error('No se obtuvieron velas de Binance (fallas '+fail+')');
-  return out.sort((a,b)=>b.score-a.score).slice(0,80);
+  if(!out.length)throw Error('No se recibieron velas Binance; fallos '+fail);
+  console.log('Binance catálogo',tickers.length,'líquidos',valid.length,'examinados',out.length,'fallos',fail);
+  return out.sort((a,b)=>b.score-a.score);
+}
+function lifecycle(kind,rows){
+  const prev=state.seen||{},events=state.events||[];
+  const clock=now();
+  for(const r of rows){
+    const old=prev[r.id];
+    if(old){
+      const was=old.lastStatus;
+      r.firstSeenAt=old.firstSeenAt;
+      r.previousStatus=was;
+      if(was==='reject'&&r.status!=='reject'){
+        r.reconsidered=true;
+        events.unshift({id:r.id,symbol:r.symbol,kind,from:was,to:r.status,score:r.score,at:clock});
+      }
+      if(was!=='reject'&&r.status==='reject'){
+        events.unshift({id:r.id,symbol:r.symbol,kind,from:was,to:r.status,score:r.score,at:clock});
+      }
+    } else {
+      r.firstSeenAt=clock;
+      r.previousStatus=null;
+    }
+    prev[r.id]={firstSeenAt:r.firstSeenAt,lastStatus:r.status,lastSeenAt:clock,lastCheckedAt:clock,lastScore:r.score};
+  }
+  state.events=events.slice(0,120);
+  const entries=Object.entries(prev).sort((a,b)=>Date.parse(b[1].lastSeenAt||'1970-01-01')-Date.parse(a[1].lastSeenAt||'1970-01-01'));
+  state.seen=Object.fromEntries(entries.filter(([id,v])=>Date.now()-Date.parse(v.lastSeenAt||'1970-01-01')<7*86400000).slice(0,2600));
 }
 function appendHistory(rows){
   const existing=new Set(state.history.map(x=>x.signalKey));
@@ -188,6 +284,7 @@ async function cycle(){
   for(let i=0;i<rs.length;i++){
     const kind=i===0?'spot':'dex',r=rs[i];
     if(r.status==='fulfilled'){
+      lifecycle(kind,r.value);
       state[kind]={data:r.value,updatedAt:now(),source:origins[kind],error:null};
       appendHistory(r.value);
       console.log(kind,'analizados',r.value.length,'señales',r.value.filter(x=>x.status==='signal').length);
@@ -209,7 +306,7 @@ http.createServer((req,res)=>{
   if(req.method!=='GET'){reply(res,405,{error:'Sólo GET'});return;}
   if(u.pathname==='/api/health')return reply(res,200,{online:true,startedAt:state.startedAt,scans:state.scans,running:state.running,scanFinished:state.scanFinished,spotUpdatedAt:state.spot.updatedAt,dexUpdatedAt:state.dex.updatedAt});
   if(u.pathname==='/api/results')return reply(res,200,{serverTime:now(),running:state.running,scans:state.scans,scanFinished:state.scanFinished,spot:state.spot,dex:state.dex});
-  if(u.pathname==='/api/history')return reply(res,200,{data:state.history});
+  if(u.pathname==='/api/history')return reply(res,200,{data:state.history,events:state.events});
   if(u.pathname==='/api/scan')return reply(res,200,{running:state.running,scanFinished:state.scanFinished,note:'El escaneo se realiza automáticamente en servidor cada 2 minutos.'});
   if(u.pathname==='/' || u.pathname==='/index.html'){
     fs.readFile(HTML,(err,html)=>{if(err){res.writeHead(500);res.end('Vista no disponible');return;}
