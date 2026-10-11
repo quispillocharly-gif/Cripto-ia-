@@ -9,6 +9,7 @@ on:
     paths:
       - 'server.js'
       - 'public/index.html'
+      - 'index.html'
       - 'package.json'
       - '.github/workflows/cripto-ia.yml'
 
@@ -37,6 +38,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Unificar interfaz principal y GitHub Pages
+        run: cp index.html public/index.html
 
       - name: Escanear mercado y guardar resultados
         env:
