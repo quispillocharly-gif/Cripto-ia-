@@ -1,0 +1,93 @@
+name: Cripto IA - escaneo y publicación
+
+on:
+  schedule:
+    - cron: '3-58/5 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server.js'
+      - 'public/index.html'
+      - 'package.json'
+      - '.github/workflows/cripto-ia.yml'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: cripto-ia-produccion
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      pages_enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Escanear mercado y guardar resultados
+        env:
+          ONESHOT: '1'
+          DATA_PATH: public/data/results.json
+        run: |
+          mkdir -p public/data
+          node server.js
+          node -e "const s=require('./public/data/results.json'); if(!s.spot?.updatedAt && !s.dex?.updatedAt) process.exit(1)"
+
+      - name: Guardar resultado en GitHub
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/results.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Actualizar radar cripto automáticamente [skip ci]"
+            git push
+          fi
+
+      - name: Comprobar GitHub Pages
+        id: pages
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.repos.getPages({ owner: context.repo.owner, repo: context.repo.repo });
+              core.setOutput('enabled', 'true');
+            } catch (error) {
+              if (error.status === 404 || error.status === 403) {
+                core.warning('Activa Pages en Settings > Pages > Source: GitHub Actions para publicar la interfaz.');
+                core.setOutput('enabled', 'false');
+              } else {
+                throw error;
+              }
+            }
+
+      - name: Preparar sitio estático
+        if: steps.pages.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: public
+
+  publish:
+    needs: scan
+    if: needs.scan.outputs.pages_enabled == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar radar en GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
