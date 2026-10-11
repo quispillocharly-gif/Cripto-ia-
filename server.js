@@ -22,10 +22,11 @@ try {
     for(const kind of ['spot','dex']) if(saved[kind] && Array.isArray(saved[kind].data)) state[kind]=saved[kind];
     if(Array.isArray(saved.history)) state.history=saved.history.slice(0,300);
     state.scans=Number(saved.scans)||0;
+    state.scanFinished=saved.scanFinished||null;
   }
 } catch(e) {if(e.code!=='ENOENT') console.warn('Historial no disponible:',e.message);}
 function persist(){
-  try {fs.mkdirSync(path.dirname(STORE),{recursive:true});fs.writeFileSync(STORE+'.tmp',JSON.stringify({spot:state.spot,dex:state.dex,history:state.history,scans:state.scans}));fs.renameSync(STORE+'.tmp',STORE);}
+  try {fs.mkdirSync(path.dirname(STORE),{recursive:true});fs.writeFileSync(STORE+'.tmp',JSON.stringify({spot:state.spot,dex:state.dex,history:state.history,scans:state.scans,scanFinished:state.scanFinished,running:false}));fs.renameSync(STORE+'.tmp',STORE);}
   catch(e){console.warn('No se guardó el estado:',e.message);}
 }
 async function json(url,timeout=15000){
@@ -202,6 +203,7 @@ function reply(res,code,data){
   res.end(JSON.stringify(data));
 }
 const HTML=path.join(__dirname,'public','index.html');
+if (process.env.ONESHOT !== '1') {
 http.createServer((req,res)=>{
   let u;try{u=new URL(req.url,'http://localhost');}catch{reply(res,400,{error:'URL inválida'});return;}
   if(req.method!=='GET'){reply(res,405,{error:'Sólo GET'});return;}
@@ -219,3 +221,6 @@ http.createServer((req,res)=>{
 setTimeout(()=>{cycle().catch(e=>{busy=false;state.running=false;console.error('Ciclo',e);});},1000);
 setInterval(()=>{cycle().catch(e=>{busy=false;state.running=false;console.error('Ciclo',e);});},PERIOD);
 process.on('SIGTERM',()=>{persist();process.exit(0);});
+} else {
+  cycle().then(()=>{ console.log('Escaneo único completado'); process.exit(0); }).catch(e=>{console.error('Error de escaneo',e);process.exit(1);});
+}
