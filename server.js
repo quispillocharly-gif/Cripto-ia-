@@ -2,6 +2,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const {scanFutures,appendFuturesSignals,auditFutures,futuresStats} = require('./futures');
 const PORT = Number(process.env.PORT || 3000);
 const STORE = process.env.DATA_PATH || '/data/cripto-ia.json';
 const PERIOD = 120000;
@@ -9,18 +10,22 @@ const $ = (n) => Number(n) || 0;
 const clamp = (x,a,b) => Math.min(b,Math.max(a,x));
 const pause = ms => new Promise(r => setTimeout(r,ms));
 const now = () => new Date().toISOString();
-const origins = {spot:'Binance Spot · inventario completo y velas por activo',dex:'DEX Screener + GeckoTerminal · nuevos pools y tendencias (cobertura parcial)'};
+const origins = {spot:'Binance Spot · inventario completo y velas por activo',futures:'Binance USDⓈ-M Futures · perpetuos USDT/USDC',dex:'DEX Screener + GeckoTerminal · nuevos pools y tendencias (cobertura parcial)'};
 let state = {
-  version:'2.3.0',startedAt:now(),running:false,scans:0,scanStarted:null,scanFinished:null,
+  version:'3.0.0',startedAt:now(),running:false,scans:0,scanStarted:null,scanFinished:null,
   spot:{updatedAt:null,source:origins.spot,error:'Esperando primer escaneo',data:[]},
+  futures:{updatedAt:null,source:origins.futures,error:'Esperando primer escaneo',data:[],coverage:null},
+  futuresHistory:[],futuresPerformance:{},
   dex:{updatedAt:null,source:origins.dex,error:'Esperando primer escaneo',data:[]},
   history:[],seen:{},events:[]
 };
 try {
   const saved=JSON.parse(fs.readFileSync(STORE,'utf8'));
   if(saved && typeof saved==='object'){
-    for(const kind of ['spot','dex']) if(saved[kind] && Array.isArray(saved[kind].data)) state[kind]=saved[kind];
+    for(const kind of ['spot','dex','futures']) if(saved[kind] && Array.isArray(saved[kind].data)) state[kind]=saved[kind];
     if(Array.isArray(saved.history)) state.history=saved.history.slice(0,300);
+    if(Array.isArray(saved.futuresHistory))state.futuresHistory=saved.futuresHistory.slice(0,250);
+    if(saved.futuresPerformance)state.futuresPerformance=saved.futuresPerformance;
     state.scans=Number(saved.scans)||0;
     state.scanFinished=saved.scanFinished||null;
     if(saved.seen && typeof saved.seen==='object')state.seen=saved.seen;
@@ -29,7 +34,7 @@ try {
   }
 } catch(e) {if(e.code!=='ENOENT') console.warn('Historial no disponible:',e.message);}
 function persist(){
-  try {fs.mkdirSync(path.dirname(STORE),{recursive:true});fs.writeFileSync(STORE+'.tmp',JSON.stringify({spot:state.spot,dex:state.dex,history:state.history,seen:state.seen,events:state.events,intelligence:state.intelligence,scans:state.scans,scanFinished:state.scanFinished,running:false}));fs.renameSync(STORE+'.tmp',STORE);}
+  try {fs.mkdirSync(path.dirname(STORE),{recursive:true});fs.writeFileSync(STORE+'.tmp',JSON.stringify({spot:state.spot,dex:state.dex,futures:state.futures,futuresHistory:state.futuresHistory,futuresPerformance:state.futuresPerformance,history:state.history,seen:state.seen,events:state.events,intelligence:state.intelligence,scans:state.scans,scanFinished:state.scanFinished,running:false}));fs.renameSync(STORE+'.tmp',STORE);}
   catch(e){console.warn('No se guardó el estado:',e.message);}
 }
 async function json(url,timeout=15000){
@@ -510,21 +515,27 @@ let busy=false;
 async function cycle(){
   if(busy)return;
   busy=true;state.running=true;state.scanStarted=now();console.log('Escaneo iniciado',state.scanStarted);
-  const rs=await Promise.allSettled([scanSpot(),scanDex()]);
+  const rs=await Promise.allSettled([scanSpot(),scanDex(),scanFutures()]);
   for(let i=0;i<rs.length;i++){
-    const kind=i===0?'spot':'dex',r=rs[i];
+    const kind=['spot','dex','futures'][i],r=rs[i];
     if(r.status==='fulfilled'){
       const rows=Array.isArray(r.value)?r.value:r.value.data;
-      lifecycle(kind,rows);
+      if(kind==='futures'){
+        state.futuresHistory=appendFuturesSignals(state.futuresHistory,rows);
+      }else{
+        lifecycle(kind,rows);
+        appendHistory(rows);
+      }
       state[kind]={data:rows,updatedAt:now(),source:origins[kind],error:null,coverage:r.value.coverage||null};
-      appendHistory(rows);
       console.log(kind,'analizados',rows.length,'señales',rows.filter(x=>x.status==='signal').length);
     }else {
       state[kind].error=String(r.reason && r.reason.message || r.reason);
       console.error(kind,state[kind].error);
     }
   }
-  try{await verifySpotOutcomes();}catch(e){console.warn('Falló auditoría de objetivos:',e.message);}
+  try{await verifySpotOutcomes();}catch(e){console.warn('Falló auditoría de objetivos Spot:',e.message);}
+  try{await auditFutures(state.futuresHistory);}catch(e){console.warn('Falló auditoría Futures:',e.message);}
+  state.futuresPerformance=futuresStats(state.futuresHistory);
   state.intelligence={currentModel:'FLOW_V2',legacy:evidenceFor('spot',null),current:evidenceFor('spot','FLOW_V2'),bearish:evidenceFor('spot','FLOW_BEAR_V1'),updatedAt:now()};
   state.scans++;state.running=false;state.scanFinished=now();busy=false;persist();
 }
@@ -538,8 +549,8 @@ http.createServer((req,res)=>{
   let u;try{u=new URL(req.url,'http://localhost');}catch{reply(res,400,{error:'URL inválida'});return;}
   if(req.method!=='GET'){reply(res,405,{error:'Sólo GET'});return;}
   if(u.pathname==='/api/health')return reply(res,200,{online:true,startedAt:state.startedAt,scans:state.scans,running:state.running,scanFinished:state.scanFinished,spotUpdatedAt:state.spot.updatedAt,dexUpdatedAt:state.dex.updatedAt});
-  if(u.pathname==='/api/results')return reply(res,200,{serverTime:now(),running:state.running,scans:state.scans,scanFinished:state.scanFinished,spot:state.spot,dex:state.dex});
-  if(u.pathname==='/api/history')return reply(res,200,{data:state.history,events:state.events});
+  if(u.pathname==='/api/results')return reply(res,200,{serverTime:now(),running:state.running,scans:state.scans,scanFinished:state.scanFinished,spot:state.spot,dex:state.dex,futures:state.futures,futuresHistory:state.futuresHistory,futuresPerformance:state.futuresPerformance});
+  if(u.pathname==='/api/history')return reply(res,200,{data:state.history,events:state.events,futures:state.futuresHistory,futuresPerformance:state.futuresPerformance});
   if(u.pathname==='/api/scan')return reply(res,200,{running:state.running,scanFinished:state.scanFinished,note:'El escaneo se realiza automáticamente en servidor cada 2 minutos.'});
   if(u.pathname==='/' || u.pathname==='/index.html'){
     fs.readFile(HTML,(err,html)=>{if(err){res.writeHead(500);res.end('Vista no disponible');return;}
