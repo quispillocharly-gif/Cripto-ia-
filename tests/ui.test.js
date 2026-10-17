@@ -51,7 +51,7 @@ vm.runInNewContext(page.slice(i+8,j),context,{timeout:1000});
   node('tabFutures').onclick();
   await new Promise(resolve=>setTimeout(resolve,25));
   assert.equal(node('statTotal').textContent,1,'Browser Futures loads one contract');
-  assert.match(node('cards').innerHTML,/FUTURES PERPETUO/,'Futures contract badge visible');
+  assert.match(node('cards').innerHTML,/BINANCE FUTURES|GATE.IO FUTURES/,'Futures source badge visible');
   assert.match(node('cards').innerHTML,/SHORT|VENTA/,'Futures short signalled');
   assert.match(node('futuresMode').textContent,/celular|dispositivo/i,'Explicit browser-only mode warning');
   assert.equal(node('futuresNotice').style.display,'block');
