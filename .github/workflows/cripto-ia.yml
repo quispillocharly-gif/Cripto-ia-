@@ -62,15 +62,36 @@ jobs:
           node server.js
           node -e "const s=require('./public/data/results.json'); if(!s.spot?.updatedAt && !s.dex?.updatedAt) process.exit(1)"
 
-      - name: Guardar resultado en GitHub
+      - name: Guardar resultado en GitHub de forma segura
         run: |
+          set -e
+          cp public/data/results.json /tmp/cripto-results.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/data/results.json
-          if ! git diff --cached --quiet; then
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            # Only the single generated data file is committed; preserve the latest
+            # user-edited source files even when they changed during scanning.
+            git reset --hard origin/main
+            cp /tmp/cripto-results.json public/data/results.json
+            git add public/data/results.json
+            if git diff --cached --quiet; then
+              echo "Resultados ya actualizados"
+              break
+            fi
             git commit -m "Actualizar radar cripto automáticamente [skip ci]"
-            git push
-          fi
+            if git push origin HEAD:main; then
+              echo "Resultados guardados"
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "No se pudieron guardar los resultados tras cinco reintentos" >&2
+              exit 1
+            fi
+            sleep $((attempt * 2))
+          done
+          cp index.html public/index.html
+          cp futures.js public/futures.js
 
       - name: Comprobar GitHub Pages
         id: pages
