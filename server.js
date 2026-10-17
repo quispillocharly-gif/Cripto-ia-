@@ -25,10 +25,11 @@ try {
     state.scanFinished=saved.scanFinished||null;
     if(saved.seen && typeof saved.seen==='object')state.seen=saved.seen;
     if(Array.isArray(saved.events))state.events=saved.events.slice(0,100);
+    if(saved.intelligence&&typeof saved.intelligence==='object')state.intelligence=saved.intelligence;
   }
 } catch(e) {if(e.code!=='ENOENT') console.warn('Historial no disponible:',e.message);}
 function persist(){
-  try {fs.mkdirSync(path.dirname(STORE),{recursive:true});fs.writeFileSync(STORE+'.tmp',JSON.stringify({spot:state.spot,dex:state.dex,history:state.history,seen:state.seen,events:state.events,scans:state.scans,scanFinished:state.scanFinished,running:false}));fs.renameSync(STORE+'.tmp',STORE);}
+  try {fs.mkdirSync(path.dirname(STORE),{recursive:true});fs.writeFileSync(STORE+'.tmp',JSON.stringify({spot:state.spot,dex:state.dex,history:state.history,seen:state.seen,events:state.events,intelligence:state.intelligence,scans:state.scans,scanFinished:state.scanFinished,running:false}));fs.renameSync(STORE+'.tmp',STORE);}
   catch(e){console.warn('No se guardó el estado:',e.message);}
 }
 async function json(url,timeout=15000){
@@ -177,8 +178,23 @@ function atr(bs,n=14){
   let a=0;for(let i=1;i<=n;i++)a+=Math.max(bs[i].h-bs[i].l,Math.abs(bs[i].h-bs[i-1].c),Math.abs(bs[i].l-bs[i-1].c));
   a/=n;for(let i=n+1;i<bs.length;i++){const t=Math.max(bs[i].h-bs[i].l,Math.abs(bs[i].h-bs[i-1].c),Math.abs(bs[i].l-bs[i-1].c));a=(a*(n-1)+t)/n;}return a;
 }
+// Empirical evidence, not a probability guarantee. Each label is based only on
+// previously closed historical signals, excluding pending/expired DEX signals.
+function evidenceFor(kind,setupVersion){
+  const recent=(state.history||[]).filter(h=>h.kind===kind &&
+    (h.outcome==='sl'||h.outcome==='tp2'||(h.outcome==='tp1'&&h.closedAt)) &&
+    (!setupVersion||h.setupVersion===setupVersion));
+  const wins=recent.filter(h=>h.outcome==='tp1'||h.outcome==='tp2').length;
+  const losses=recent.length-wins;
+  const n=recent.length;
+  // Beta(2,3) is deliberately conservative when a strategy has few observations.
+  const posterior=(wins+2)/(n+5);
+  return {sample:n,wins,losses,observedHitRate:n?+(100*wins/n).toFixed(1):null,
+    smoothedHitRate:+(100*posterior).toFixed(1),validated:n>=40,
+    label:n<40?'Muestra insuficiente':posterior>=.4?'Racha a evaluar':'Rendimiento débil'};
+}
 function evaluateSpot(raw,t){
-  const bs=raw.map(b=>({o:$(b[1]),h:$(b[2]),l:$(b[3]),c:$(b[4]),v:$(b[5]),time:$(b[6])})).filter(b=>b.c>0 && b.h>0 && b.time<=Date.now());
+  const bs=raw.map(b=>({o:$(b[1]),h:$(b[2]),l:$(b[3]),c:$(b[4]),v:$(b[5]),quoteVolume:$(b[7]),takerBuyQuote:$(b[10]),time:$(b[6])})).filter(b=>b.c>0 && b.h>0 && b.time<=Date.now());
   if(bs.length<75)return null;
   const last=bs[bs.length-1],older=bs.slice(0,-1),cs=bs.map(b=>b.c);
   // Exclude delisted/inactive markets whose most recent closed candle is stale.
@@ -187,7 +203,28 @@ function evaluateSpot(raw,t){
   const volumeBase=older.slice(-20).reduce((a,b)=>a+b.v,0)/20,vr=volumeBase?last.v/volumeBase:0;
   const peak=Math.max(...older.slice(-20).map(b=>b.h)),breakout=last.c>peak;
   const momentum=100*(last.c/bs[bs.length-4].c-1),slope=100*(e20.at(-1)/e20.at(-5)-1);
+  const recent3=bs.slice(-3),recentVol=recent3.reduce((a,b)=>a+b.quoteVolume,0);
+  const buyers=recent3.reduce((a,b)=>a+b.takerBuyQuote,0);
+  const takerShare=recentVol>0?buyers/recentVol:null;
+  const candleRange=Math.max(1e-12,last.h-last.l);
+  const closePosition=clamp((last.c-last.l)/candleRange,0,1);
+  const upperWick=clamp((last.h-Math.max(last.o,last.c))/candleRange,0,1);
+  const ask=$(t.askPrice),bid=$(t.bidPrice);
+  const spreadPct=ask>bid&&bid>0?100*(ask-bid)/((ask+bid)/2):null;
+  const microPass=takerShare!==null && takerShare>=.515 && closePosition>=.67 &&
+    upperWick<=.3 && last.c>last.o;
+  const e=evidenceFor('spot','FLOW_V2');
   let score=12,why=[],risks=[];
+  if(takerShare!==null){
+    if(takerShare>=.56){score+=12;why.push('Compras agresivas '+Math.round(takerShare*100)+'%');}
+    else if(takerShare<.48){score-=20;risks.push('Predominan ventas ejecutadas');}
+    else if(takerShare>=.515){score+=5;why.push('Presión compradora confirmada');}
+  }
+  if(closePosition>=.76&&upperWick<=.2){score+=9;why.push('Cierre sólido sin rechazo superior');}
+  else if(closePosition<.58||upperWick>.38){score-=17;risks.push('Rechazo o cierre débil de vela');}
+  if(spreadPct!==null){if(spreadPct>.35){score-=20;risks.push('Spread elevado '+spreadPct.toFixed(2)+'%');}
+    else if(spreadPct>.15){score-=8;risks.push('Spread moderado '+spreadPct.toFixed(2)+'%');}}
+
   if(e20.at(-1)>e50.at(-1) && last.c>e20.at(-1)){score+=22;why.push('EMA20 > EMA50');}else{score-=9;risks.push('Tendencia no confirmada');}
   if(slope>.05){score+=10;why.push('EMA20 ascendiendo');}else if(slope<0)score-=8;
   if(R>=49 && R<=65){score+=16;why.push('RSI de impulso temprano');}
@@ -199,17 +236,23 @@ function evaluateSpot(raw,t){
   else if(momentum>3.1){score-=17;risks.push('Precio avanzado, posible persecución');}
   else if(momentum<-.2)score-=6;
   const priceDeviation=Math.abs($(t.lastPrice)-last.c)/last.c;
-  const blocked=!A || $(t.quoteVolume)<300000 || !Number.isFinite(priceDeviation) || priceDeviation>.025;
+  const blocked=!A || $(t.quoteVolume)<300000 || !Number.isFinite(priceDeviation) || priceDeviation>.025 || (spreadPct!==null&&spreadPct>.35);
   if(priceDeviation>.025)risks.push('Precio y vela inconsistentes: descartar');
   if(blocked)risks.push('Mercado ilíquido o volatilidad insuficiente');
   score=clamp(Math.round(score),0,100);
-  const signal=!blocked && score>=75 && breakout && vr>=1.15 && R<=67 && momentum<2.8;
+  const samplePenalty=e.validated&&e.smoothedHitRate<36;
+  if(samplePenalty)risks.push('Historial de este modelo aún desfavorable');
+  const signal=!blocked && score>=78 && breakout && vr>=1.15 && R<=67 && momentum<2.8 && microPass && !samplePenalty;
   const status=signal?'signal':(!blocked&&score>=50?'watch':'reject');
   const risk=Math.max(1.5*A,last.c*.009);
   const id='spot:'+t.symbol;
   return {id,kind:'spot',chain:'Binance Spot',symbol:t.symbol.replace(/USDT$/,''),name:t.symbol,price:$(t.lastPrice)||last.c,
     score,status,why,risks,entry:last.c,stop:last.c-risk,tp1:last.c+1.7*risk,tp2:last.c+2.5*risk,
     volume:$(t.quoteVolume),change5:momentum,change1:$(t.priceChangePercent),volRatio:+vr.toFixed(2),rsi:+R.toFixed(1),origin:'Binance Spot',
+    takerBuyPct:takerShare===null?null:+(100*takerShare).toFixed(1),
+    closeQuality:+(100*closePosition).toFixed(1),upperWickPct:+(100*upperWick).toFixed(1),
+    spreadPct:spreadPct===null?null:+spreadPct.toFixed(3),
+    setupVersion:'FLOW_V2',empirical:e,
     url:'https://www.binance.com/en/trade/'+encodeURIComponent(t.symbol.replace(/USDT$/,''))+'_USDT',
     signalKey:id+':'+last.time,updatedAt:now(),candleClosedAt:new Date(last.time).toISOString()};
 }
@@ -273,8 +316,9 @@ function appendHistory(rows){
   const existing=new Set(state.history.map(x=>x.signalKey));
   for(const r of rows){
     if(r.status==='signal' && !existing.has(r.signalKey)){
-      const {id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url}=r;
-      state.history.unshift({id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,detectedAt:now(),outcome:'open'});
+      const {id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,setupVersion,takerBuyPct,spreadPct,closeQuality}=r;
+      state.history.unshift({id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,
+        setupVersion:setupVersion||'LEGACY',takerBuyPct,spreadPct,closeQuality,detectedAt:now(),outcome:'open'});
       existing.add(signalKey);
     }
   }
@@ -361,6 +405,7 @@ async function cycle(){
     }
   }
   try{await verifySpotOutcomes();}catch(e){console.warn('Falló auditoría de objetivos:',e.message);}
+  state.intelligence={currentModel:'FLOW_V2',legacy:evidenceFor('spot',null),current:evidenceFor('spot','FLOW_V2'),updatedAt:now()};
   state.scans++;state.running=false;state.scanFinished=now();busy=false;persist();
 }
 function reply(res,code,data){
