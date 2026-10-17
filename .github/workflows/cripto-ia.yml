@@ -55,6 +55,22 @@ jobs:
           node tests/ui.test.js
           node -e "const fs=require('fs');const s=fs.readFileSync('public/index.html','utf8');const a=s.indexOf('<script>'),b=s.indexOf('</script>',a);if(a<0||b<0)throw Error('Panel sin script');new Function(s.slice(a+8,b));"
 
+      - name: Verificar fuente alterna de futuros (datos públicos)
+        run: |
+          node - <<'NODE'
+          (async()=>{
+            const base='https://api.gateio.ws/api/v4/futures/usdt';
+            for(const url of [base+'/tickers?contract=BTC_USDT',base+'/candlesticks?contract=BTC_USDT&interval=5m&limit=4']){
+              try{
+                const r=await fetch(url,{signal:AbortSignal.timeout(10000)});
+                const json=await r.json().catch(()=>null);
+                console.log('Gate Futures probe',r.status,url.includes('candlesticks')?'klines':'tickers',
+                  Array.isArray(json)?'items='+json.length:'respuesta no disponible');
+              }catch(e){console.log('Gate Futures probe ERROR',String(e.message).slice(0,120));}
+            }
+          })().catch(e=>console.log('Gate Futures probe error',String(e)));
+          NODE
+
       - name: Escanear mercado y guardar resultados
         env:
           ONESHOT: '1'
