@@ -242,7 +242,9 @@ function evaluateSpot(raw,t){
   score=clamp(Math.round(score),0,100);
   const samplePenalty=e.validated&&e.smoothedHitRate<36;
   if(samplePenalty)risks.push('Historial de este modelo aún desfavorable');
-  const signal=!blocked && score>=78 && breakout && vr>=1.15 && R<=67 && momentum<2.8 && microPass && !samplePenalty;
+  const validCandidate=!blocked && score>=78 && breakout && vr>=1.15 && R<=67 && momentum<2.8 && microPass;
+  const signal=validCandidate && !samplePenalty;
+  const shadowCandidate=validCandidate&&samplePenalty;
   const status=signal?'signal':(!blocked&&score>=50?'watch':'reject');
   const risk=Math.max(1.5*A,last.c*.009);
   const id='spot:'+t.symbol;
@@ -252,7 +254,7 @@ function evaluateSpot(raw,t){
     takerBuyPct:takerShare===null?null:+(100*takerShare).toFixed(1),
     closeQuality:+(100*closePosition).toFixed(1),upperWickPct:+(100*upperWick).toFixed(1),
     spreadPct:spreadPct===null?null:+spreadPct.toFixed(3),
-    setupVersion:'FLOW_V2',empirical:e,
+    setupVersion:'FLOW_V2',empirical:e,shadowCandidate,
     url:'https://www.binance.com/en/trade/'+encodeURIComponent(t.symbol.replace(/USDT$/,''))+'_USDT',
     signalKey:id+':'+last.time,updatedAt:now(),candleClosedAt:new Date(last.time).toISOString()};
 }
@@ -315,10 +317,10 @@ function lifecycle(kind,rows){
 function appendHistory(rows){
   const existing=new Set(state.history.map(x=>x.signalKey));
   for(const r of rows){
-    if(r.status==='signal' && !existing.has(r.signalKey)){
-      const {id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,setupVersion,takerBuyPct,spreadPct,closeQuality}=r;
+    if((r.status==='signal'||r.shadowCandidate) && !existing.has(r.signalKey)){
+      const {id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,setupVersion,takerBuyPct,spreadPct,closeQuality,shadowCandidate}=r;
       state.history.unshift({id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,
-        setupVersion:setupVersion||'LEGACY',takerBuyPct,spreadPct,closeQuality,detectedAt:now(),outcome:'open'});
+        setupVersion:setupVersion||'LEGACY',takerBuyPct,spreadPct,closeQuality,shadow:!!shadowCandidate,detectedAt:now(),outcome:'open'});
       existing.add(signalKey);
     }
   }
