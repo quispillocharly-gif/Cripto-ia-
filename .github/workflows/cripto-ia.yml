@@ -9,6 +9,8 @@ on:
     paths:
       - 'server.js'
       - 'futures.js'
+      - 'gate-futures.js'
+      - 'tests/gate-futures.test.js'
       - 'tests/futures.test.js'
       - 'tests/ui.test.js'
       - 'public/index.html'
@@ -46,11 +48,14 @@ jobs:
         run: |
           cp index.html public/index.html
           cp futures.js public/futures.js
+          cp gate-futures.js public/gate-futures.js
 
       - name: Validar sintaxis del motor y del panel
         run: |
           node --check server.js
           node --check futures.js
+          node --check gate-futures.js
+          node tests/gate-futures.test.js
           node tests/futures.test.js
           node tests/ui.test.js
           node -e "const fs=require('fs');const s=fs.readFileSync('public/index.html','utf8');const a=s.indexOf('<script>'),b=s.indexOf('</script>',a);if(a<0||b<0)throw Error('Panel sin script');new Function(s.slice(a+8,b));"
