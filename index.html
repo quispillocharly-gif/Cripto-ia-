@@ -28,7 +28,7 @@ nav{display:flex;align-items:center;justify-content:space-between;gap:18px;paddi
 .section-title{font-size:19px;letter-spacing:-.35px;font-weight:900;margin:0 0 12px}
 .section-sub{font-size:12px;color:#a7c1cb;margin:-7px 0 17px}
 .feature{background:linear-gradient(135deg,#1b3e3a,#142938 65%,#14212c);border:1px solid #3b7968;border-radius:16px;padding:18px;display:grid;grid-template-columns:1.2fr 1fr;gap:18px}
-.feature.watch{border-color:#7c684a;background:linear-gradient(135deg,#3b3022,#172738 65%,#14212c)}
+.feature.sell{border-color:#b16b7a;background:linear-gradient(135deg,#39242f,#142938)}.feature.watch{border-color:#7c684a;background:linear-gradient(135deg,#3b3022,#172738 65%,#14212c)}
 .feature.wait{display:block;border-color:#385665;background:#122331}
 .headline{font-size:12px;color:#90ead0;font-weight:800;letter-spacing:1px}.feature.watch .headline{color:#ffdc9c}
 .ft-symbol{font-size:32px;font-weight:950;line-height:1.25;margin:6px 0 2px;word-break:break-word}.ft-chain{font-size:12px;color:#aac5cf;line-height:1.7}
@@ -39,7 +39,7 @@ nav{display:flex;align-items:center;justify-content:space-between;gap:18px;paddi
 .search{border:1px solid #385263;border-radius:10px;background:#081623;color:#e8faff;min-height:40px;padding:9px 11px;min-width:0}.search::placeholder{color:#7d9baa}
 select.search{cursor:pointer}.grow{flex:1}.source{font-size:11px;color:#94b2c0;margin:10px 0 0}
 .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
-.coin{border:1px solid #2c4858;border-radius:15px;background:linear-gradient(160deg,#152b38,#0c1926);padding:15px;min-width:0}.coin.signal{border-color:#2ea884}.coin.watch{border-color:#806943}
+.coin{border:1px solid #2c4858;border-radius:15px;background:linear-gradient(160deg,#152b38,#0c1926);padding:15px;min-width:0}.coin.signal{border-color:#2ea884}.coin.sell.signal{border-color:#c16c7b}.coin.watch{border-color:#806943}
 .coin-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.coin-name{font-size:21px;font-weight:900;overflow-wrap:anywhere}.coin-detail{font-size:11px;color:#9fbdc8;overflow-wrap:anywhere}
 .score{flex-shrink:0;width:58px;height:54px;border:1px solid #315368;border-radius:11px;text-align:center;padding-top:4px;font-size:23px;font-weight:900}.score small{font-size:8px;display:block;color:#9cb8c6;font-weight:700;letter-spacing:1px}.coin.signal .score{color:#6cfdcb;border-color:#299b7d}.coin.watch .score{color:#ffd894;border-color:#99804d}
 .tags{display:flex;gap:5px;flex-wrap:wrap;margin:12px 0}.tag{font-size:10px;font-weight:800;border:1px solid #435965;border-radius:6px;padding:4px 7px;color:#bad2de}.tag.good{color:#60f4bf;border-color:#258e6c}.tag.warn{color:#ffd28b;border-color:#977540}.tag.bad{color:#ffadb5;border-color:#965d66}
@@ -59,10 +59,10 @@ select.search{cursor:pointer}.grow{flex:1}.source{font-size:11px;color:#94b2c0;m
 <nav><div class="logo"><div class="logo-icon">◈</div><div><div class="logo-text">CRIPTO <em>IA</em></div><small>RADAR EVOLUTIVO</small></div></div><div id="connection" class="live"><i class="dot"></i><span id="connectionText">SINCRONIZANDO</span></div></nav>
 <section class="hero"><div><div class="eyebrow">MERCADO CRIPTO · SEÑALES Y DESCUBRIMIENTO</div><h1>Tu radar.<br><strong>Directo a las señales.</strong></h1><p class="lead">Criptomonedas, memecoins y nuevos pools en una sola pantalla. Clasifica oportunidades, descarta señales débiles y vuelve a evaluarlas cuando cambian las condiciones.</p></div>
 <div class="monitor"><div class="monitor-title">CENTRO DE ANÁLISIS · ESTADO</div><div class="monitor-main"><b id="monitorAge">—</b><span id="monitorStatus">Conectando al radar</span></div><div class="monitor-small" id="monitorDetail">Consultando los últimos resultados publicados…</div><div class="monitor-small" id="sourceHealth"></div></div></section>
-<div class="summary"><div class="stat"><b id="statTotal">—</b><small>Activos del último escaneo</small></div><div class="stat"><b class="green" id="statSignals">—</b><small>Señales detectadas</small></div><div class="stat"><b class="yellow" id="statWatch">—</b><small>En vigilancia</small></div><div class="stat"><b id="statRecovered">—</b><small>Reconsideradas</small></div></div>
-<section class="section" id="learning">
+<div class="summary"><div class="stat"><b id="statTotal">—</b><small>Activos del último escaneo</small></div><div class="stat"><b class="green" id="statBuy">—</b><small>↑ Compras</small></div><div class="stat"><b class="yellow" id="statWatch">—</b><small>En vigilancia</small></div><div class="stat"><b style="color:#ff9fac" id="statSell">—</b><small>↓ Ventas</small></div></div>
+<div class="monitor" id="coverage" style="margin-bottom:17px"><div class="monitor-title">COBERTURA BINANCE</div><div class="monitor-small">Esperando el catálogo completo…</div></div><section class="section" id="learning">
 <h2 class="section-title">Motor inteligente · FLOW V2</h2>
-<p class="section-sub">No considera el puntaje como probabilidad. Para Spot evalúa la presión compradora real, el rechazo de velas y el spread antes de confirmar una señal. Aprende estadísticamente de los resultados cerrados; el modelo necesita suficientes observaciones nuevas antes de valorar su precisión.</p>
+<p class="section-sub">No considera el puntaje como probabilidad. Para Spot evalúa tanto las compras como las ventas ejecutadas, el rechazo de velas y el spread antes de confirmar una señal. Aprende estadísticamente de los resultados cerrados; el modelo necesita suficientes observaciones nuevas antes de valorar su precisión.</p>
 <div id="brain" class="summary" style="margin-bottom:9px">
 <div class="stat"><b>—</b><small>Evaluaciones comprobadas</small></div>
 <div class="stat"><b>—</b><small>TP históricos</small></div>
@@ -75,12 +75,12 @@ select.search{cursor:pointer}.grow{flex:1}.source{font-size:11px;color:#94b2c0;m
 <section class="section" id="scanner"><h2 class="section-title">Radar de criptomonedas</h2><p class="section-sub">Todas las evaluadas en el ciclo, con las mejores oportunidades primero. Los números 0–100 son puntuaciones heurísticas, no porcentajes de acierto.</p>
 <div class="toolbar"><div class="tabs"><button class="active" id="tabSpot" type="button">◆ Criptomonedas</button><button id="tabDex" type="button">◈ Memecoins / DEX</button></div>
 <div class="grow"></div><input id="search" class="search" aria-label="Buscar activo" placeholder="Buscar BTC, ICP, SOL…" type="search"/>
-<select class="search" id="filter" aria-label="Filtrar oportunidades"><option value="all">Todas las evaluadas</option><option value="signal">Señales</option><option value="watch">En vigilancia</option><option value="reject">Descartadas</option><option value="new">Nuevas en 24h</option><option value="reconsidered">Recuperadas</option></select>
-<button id="refresh" type="button">↻ Actualizar</button></div>
+<select class="search" id="filter" aria-label="Filtrar oportunidades"><option value="all">Todas las evaluadas</option><option value="signal">Señales</option><option value="buy">Sólo COMPRA</option><option value="sell">Sólo VENTA</option><option value="catalog">Sin velas recientes</option><option value="watch">En vigilancia</option><option value="reject">Descartadas</option><option value="new">Nuevas en 24h</option><option value="reconsidered">Recuperadas</option></select>
+<button id="refresh" type="button">↻ Actualizar vista</button></div>
 <p class="source" id="source">Datos pendientes</p><div id="cards" class="cards"><div class="placeholder">Cargando criptomonedas…</div></div><button class="loadmore" id="more" type="button" hidden>Ver más criptomonedas ↓</button></section>
 <section class="section"><h2 class="section-title">Aprendizaje por resultados</h2><p class="section-sub">Auditoría de TP1, TP2 y SL en Binance Spot usando velas posteriores a cada señal. No incluye ejecuciones reales, comisiones ni deslizamiento. El aprendizaje actual es estadístico y revisa señales comprobadas, no una red neuronal entrenada.</p><div id="performance" class="summary" style="margin-bottom:12px"></div><h3 class="section-title" style="font-size:15px">Últimas señales registradas</h3><div class="history" id="history"><div class="placeholder">Consultando historial…</div></div></section>
 <section class="section"><h2 class="section-title">Descartar y reconsiderar</h2><p class="section-sub">Se guarda el estado de los candidatos observados; si un activo vuelve a reunir condiciones, puede regresar a vigilancia o señal.</p><div class="history" id="events"><div class="placeholder">Sin movimientos de clasificación todavía.</div></div></section>
-<footer class="disclaimer">CRIPTO IA · Versión de radar automatizado, no inteligencia artificial entrenada ni asesoramiento financiero. Análisis basado en reglas matemáticas y datos públicos. Los nuevos tokens pueden ser fraudulentos, difíciles de vender o sufrir pérdidas totales. GitHub Actions programa las comprobaciones aproximadamente cada cinco minutos; puede retrasarse y no garantiza actividad ininterrumpida 24/7. Siempre se muestra la antigüedad de los datos para evitar confundirlos con cotizaciones en tiempo real.</footer>
+<footer class="disclaimer">CRIPTO IA · Versión de radar automatizado, no inteligencia artificial entrenada ni asesoramiento financiero. Análisis basado en reglas matemáticas y datos públicos. VENTA Spot significa vender monedas que posees; no abre posiciones cortas. Los nuevos tokens pueden ser fraudulentos, difíciles de vender o sufrir pérdidas totales. GitHub Actions programa las comprobaciones aproximadamente cada cinco minutos; puede retrasarse y no garantiza actividad ininterrumpida 24/7. Siempre se muestra la antigüedad de los datos para evitar confundirlos con cotizaciones en tiempo real.</footer>
 </div>
 <script>
 'use strict';
@@ -90,11 +90,12 @@ const fmt=x=>{x=Number(x);if(!Number.isFinite(x)||x<=0)return '—';if(x>=100)re
 const compact=x=>{x=Number(x)||0;return x>=1e9?'$'+(x/1e9).toFixed(2)+'B':x>=1e6?'$'+(x/1e6).toFixed(2)+'M':x>=1e3?'$'+(x/1e3).toFixed(1)+'K':'$'+x.toFixed(0)};
 const age=x=>{let dt=Date.parse(x||'');if(!Number.isFinite(dt))return 'sin fecha';const m=Math.max(0,Math.floor((Date.now()-dt)/60000));return m===0?'menos de 1 min':m<60?m+' min':m<1440?Math.floor(m/60)+' h':Math.floor(m/1440)+' días'};
 const time=x=>{let d=new Date(x);return Number.isFinite(d.getTime())?d.toLocaleString('es-EC'):'—'};
-const statusNames={signal:'SEÑAL',watch:'VIGILANCIA',reject:'DESCARTADA'};
+const statusNames={signal:'SEÑAL',watch:'VIGILANCIA',reject:'DESCARTADA',catalog:'SIN VELAS'};
+const priceFor=(r,n)=>{const q=r.quoteAsset||'USDT',v=Number(n);if(r.kind!=='spot'||['USDT','USDC','FDUSD','USD1','TUSD','USDP','DAI'].includes(q))return fmt(n);return Number.isFinite(v)&&v>0?v.toPrecision(6)+' '+escapeHtml(q):'—';};
 let db=null,mode='spot',filter='all',visible=30,isLoading=false;
 function urlFor(r){let u=String(r.url||'');if(/^https:\/\/(?:www\.)?(?:binance\.com|geckoterminal\.com|dexscreener\.com)\//i.test(u))return u;return r.kind==='dex'?'https://dexscreener.com/':'https://www.binance.com/en/markets/overview'}
 function link(r){return '<a href="'+escapeHtml(urlFor(r))+'" target="_blank" rel="noopener noreferrer">Abrir gráfico ↗</a>'}
-function ordered(list){const rank={signal:0,watch:1,reject:2};return list.slice().sort((a,b)=>(rank[a.status]??3)-(rank[b.status]??3)||Number(b.score||0)-Number(a.score||0))}
+function ordered(list){const rank={signal:0,watch:1,reject:2,catalog:3};return list.slice().sort((a,b)=>(rank[a.status]??3)-(rank[b.status]??3)||Number(b.score||0)-Number(a.score||0))}
 function allItems(){if(!db)return [];return [...(db.spot?.data||[]),...(db.dex?.data||[])]}
 function rows(){return ordered(db?.[mode]?.data||[])}
 function getFresh(){return db?.scanFinished || [db?.spot?.updatedAt,db?.dex?.updatedAt].filter(Boolean).sort().pop()||null}
@@ -102,10 +103,10 @@ function freshness(){
  const at=getFresh(),delta=at?Date.now()-Date.parse(at):Infinity;
  const cls=delta<16*60000?'ok':delta<45*60000?'late':'err';
  byId('connection').className='live '+cls;
- byId('connectionText').textContent=cls==='ok'?'RADAR ACTUALIZADO':cls==='late'?'DATOS CON RETRASO':'DATOS NO RECIENTES';
+ byId('connectionText').textContent=cls==='ok'?'ESCANEO RECIENTE':cls==='late'?'ESCANEO ATRASADO':'ESCANEO MUY ANTIGUO';
  byId('monitorAge').textContent=age(at);
  byId('monitorStatus').textContent=cls==='ok'?'Último escaneo':'Última información';
- byId('monitorDetail').textContent=at?'Última ejecución: '+time(at)+' · '+(db.scans||0)+' ciclos guardados':'Esperando primer escaneo';
+ byId('monitorDetail').textContent=at?'Última ejecución: '+time(at)+' · '+(db.scans||0)+' ciclos guardados · GitHub puede retrasarse.':'Esperando primer escaneo';
  const errs=[db.spot?.error&&'Spot: '+db.spot.error,db.dex?.error&&'DEX: '+db.dex.error].filter(Boolean);
  byId('sourceHealth').textContent=errs.length?('⚠ '+errs.join(' | ')):'✓ Fuentes consultadas; la pantalla no transmite ticks en directo';
 }
@@ -113,30 +114,30 @@ function highlight(){
  const list=ordered(allItems()),r=list.find(x=>x.status==='signal')||list.find(x=>x.status==='watch');
  if(!r){byId('spotlight').className='feature wait';byId('spotlight').innerHTML='<div class="placeholder">No hay oportunidades con datos suficientes. No se generan señales por obligación.</div>';return;}
  const isSignal=r.status==='signal',fresh=getFresh()?Date.now()-Date.parse(getFresh())<16*60000:false;
- byId('spotlight').className='feature'+(isSignal?'':' watch');
+ byId('spotlight').className='feature'+(r.side==='sell'?' sell':isSignal?'':' watch');
  const w=(r.why||[]).slice(0,3).join(' · '),risks=(r.risks||[]).slice(0,2).join(' · ');
- byId('spotlight').innerHTML='<div><div class="headline">'+(isSignal?'● SEÑAL DETECTADA':'◉ EN VIGILANCIA')+(fresh?' · DATOS RECIENTES':' · DATOS RETRASADOS')+'</div>'+
+ byId('spotlight').innerHTML='<div><div class="headline">'+(isSignal?'● SEÑAL '+(r.side==='sell'?'VENTA':'COMPRA'):'◉ VIGILAR '+(r.side==='sell'?'BAJISTA':'ALCISTA'))+(fresh?' · DATOS RECIENTES':' · DATOS RETRASADOS')+'</div>'+
  '<div class="ft-symbol">'+escapeHtml(r.symbol||r.name)+'</div><div class="ft-chain">'+escapeHtml(r.name||'')+' · '+escapeHtml(r.chain||'')+' · '+escapeHtml(r.kind==='dex'?'Memecoin / DEX':'Binance Spot')+'</div>'+
  '<p>Motivos: '+escapeHtml(w||'Todavía no cumple todas las condiciones')+'</p>'+(risks?'<div class="reason">⚠ '+escapeHtml(risks)+'</div>':'')+
- '<div style="margin-top:13px"><span class="feature-price">'+fmt(r.price)+'</span><span class="source" style="display:block">Puntuación '+escapeHtml(r.score)+'/100 · no es probabilidad</span></div>'+link(r)+'</div>'+
- '<div class="levels"><div class="level"><span>Entrada de referencia</span><b>'+fmt(r.entry)+'</b></div><div class="level sl"><span>Stop loss</span><b>'+fmt(r.stop)+'</b></div><div class="level tp"><span>TP1</span><b>'+fmt(r.tp1)+'</b></div><div class="level tp"><span>TP2</span><b>'+fmt(r.tp2)+'</b></div></div>';
+ '<div style="margin-top:13px"><span class="feature-price">'+priceFor(r,r.price)+'</span><span class="source" style="display:block">Puntuación '+escapeHtml(r.score)+'/100 · no es probabilidad</span></div>'+link(r)+'</div>'+
+ '<div class="levels"><div class="level"><span>Entrada de referencia</span><b>'+priceFor(r,r.entry)+'</b></div><div class="level sl"><span>Stop loss</span><b>'+priceFor(r,r.stop)+'</b></div><div class="level tp"><span>TP1</span><b>'+priceFor(r,r.tp1)+'</b></div><div class="level tp"><span>TP2</span><b>'+priceFor(r,r.tp2)+'</b></div></div>';
 }
 function coin(r){
- const state=statusNames[r.status]||'EVALUADA',risky=(r.risks||[]).slice(0,2).join(' · ');
+ const state=r.status==='signal'?'SEÑAL '+(r.side==='sell'?'VENTA':'COMPRA'):statusNames[r.status]||'EVALUADA',risky=(r.risks||[]).slice(0,2).join(' · ');
  const trend=Number(r.change5)||0,green=trend>=0;
  const v1=r.kind==='dex'?compact(r.liquidity):Number.isFinite(Number(r.rsi))?Number(r.rsi).toFixed(1):'—';
  const v2=r.kind==='dex'?compact(r.volume):(Number(r.volRatio)||0).toFixed(2)+'×';
  const title1=r.kind==='dex'?'Liquidez':'RSI 5m',title2=r.kind==='dex'?'Vol. 5m':'Vol. relativo';
- return '<article class="coin '+escapeHtml(r.status)+'"><div class="coin-top"><div><div class="coin-name">'+escapeHtml(r.symbol||r.name)+'</div><div class="coin-detail">'+escapeHtml(r.name||'')+' · '+escapeHtml(r.chain||'')+'</div></div><div class="score">'+escapeHtml(r.score)+'<small>PUNTOS</small></div></div>'+
- '<div class="tags"><span class="tag '+(r.status==='signal'?'good':r.status==='watch'?'warn':'bad')+'">'+state+'</span>'+(r.setupVersion==='FLOW_V2'?'<span class="tag good">FLOW V2</span>':'')+(r.isNew?'<span class="tag good">NUEVA 24 H</span>':'')+(r.reconsidered?'<span class="tag good">↺ RECUPERADA</span>':'')+'</div>'+
- '<div class="coin-price">'+fmt(r.price)+'</div><div class="coin-metrics"><div class="cm"><small>'+title1+'</small><b>'+v1+'</b></div><div class="cm"><small>'+title2+'</small><b>'+v2+'</b></div><div class="cm"><small>Impulso</small><b style="color:'+(green?'#56f1b2':'#ff99a6')+'">'+trend.toFixed(2)+'%</b></div></div>'+
+ return '<article class="coin '+escapeHtml(r.status)+' '+(r.side==='sell'?'sell':'')+'"><div class="coin-top"><div><div class="coin-name">'+escapeHtml(r.symbol||r.name)+'</div><div class="coin-detail">'+escapeHtml(r.name||'')+' · '+escapeHtml(r.chain||'')+'</div></div><div class="score">'+(r.score==null?'—':escapeHtml(r.score))+'<small>PUNTOS</small></div></div>'+
+ '<div class="tags"><span class="tag '+(r.status==='signal'?'good':r.status==='watch'?'warn':'bad')+'">'+state+'</span>'+(r.side==='sell'?'<span class="tag bad">↓ BAJISTA</span>':r.side==='buy'?'<span class="tag good">↑ ALCISTA</span>':'')+(r.setupVersion==='FLOW_V2'?'<span class="tag good">FLOW V2</span>':'')+(r.isNew?'<span class="tag good">NUEVA 24 H</span>':'')+(r.reconsidered?'<span class="tag good">↺ RECUPERADA</span>':'')+'</div>'+
+ '<div class="coin-price">'+priceFor(r,r.price)+'</div><div class="coin-metrics"><div class="cm"><small>'+title1+'</small><b>'+v1+'</b></div><div class="cm"><small>'+title2+'</small><b>'+v2+'</b></div><div class="cm"><small>Impulso</small><b style="color:'+(green?'#56f1b2':'#ff99a6')+'">'+trend.toFixed(2)+'%</b></div></div>'+
  '<div class="why">✓ '+escapeHtml((r.why||[]).slice(0,3).join(' · ')||'Aún sin confirmación suficiente')+(r.setupVersion==='FLOW_V2'&&r.takerBuyPct!=null?' · Flujo comprador '+escapeHtml(r.takerBuyPct)+'%':'')+'</div>'+(risky?'<div class="risk">⚠ '+escapeHtml(risky)+'</div>':'<div class="risk"></div>')+
- '<div class="coin-levels"><div><small>Entrada</small><b>'+fmt(r.entry)+'</b></div><div><small>SL</small><b>'+fmt(r.stop)+'</b></div><div><small>TP1</small><b>'+fmt(r.tp1)+'</b></div><div><small>TP2</small><b>'+fmt(r.tp2)+'</b></div></div>'+
+ '<div class="coin-levels"><div><small>Entrada</small><b>'+priceFor(r,r.entry)+'</b></div><div><small>SL</small><b>'+priceFor(r,r.stop)+'</b></div><div><small>TP1</small><b>'+priceFor(r,r.tp1)+'</b></div><div><small>TP2</small><b>'+priceFor(r,r.tp2)+'</b></div></div>'+
  '<div class="coin-foot"><span>Analizada hace '+age(r.updatedAt)+'</span>'+link(r)+'</div></article>';
 }
 function listing(){
  const data=rows(),needle=byId('search').value.trim().toLowerCase();
- const found=data.filter(r=>(filter==='all'||filter===r.status||(filter==='new'&&r.isNew)||(filter==='reconsidered'&&r.reconsidered))&&((r.name||'').toLowerCase().includes(needle)||(r.symbol||'').toLowerCase().includes(needle)||(r.chain||'').toLowerCase().includes(needle)));
+ const found=data.filter(r=>(filter==='all'||filter===r.status||(filter==='new'&&r.isNew)||(filter==='reconsidered'&&r.reconsidered)||(filter==='buy'&&r.status==='signal'&&r.side==='buy')||(filter==='sell'&&r.status==='signal'&&r.side==='sell'))&&((r.name||'').toLowerCase().includes(needle)||(r.symbol||'').toLowerCase().includes(needle)||(r.chain||'').toLowerCase().includes(needle)));
  byId('cards').innerHTML=found.length?found.slice(0,visible).map(coin).join(''):'<div class="placeholder">No hay monedas con esas condiciones en el último escaneo. Prueba otro filtro.</div>';
  byId('more').hidden=found.length<=visible;
  byId('more').textContent='Mostrar más · '+Math.min(visible,found.length)+' de '+found.length;
@@ -158,7 +159,7 @@ function history(){
  const rows=Array.isArray(db.history)?db.history.filter(x=>!x.shadow):[],spot=rows.filter(x=>x.kind==='spot'),count=o=>spot.filter(x=>x.outcome===o).length;
  const tp1=spot.filter(x=>x.outcome==='tp1'&&x.closedAt).length,tp2=count('tp2'),sl=count('sl'),amb=count('ambiguous');
  byId('performance').innerHTML=[['TP1 verificados',tp1,'green'],['TP2 verificados',tp2,'green'],['SL verificados',sl,''],['Ambiguos',amb,'yellow']].map(a=>'<div class="stat"><b class="'+a[2]+'">'+a[1]+'</b><small>'+a[0]+'</small></div>').join('');
- byId('history').innerHTML=rows.length?rows.slice(0,22).map(h=>{const o=outcome(h);return '<div class="entry"><div><strong>'+escapeHtml(h.symbol||h.name)+'</strong><div><span>'+time(h.detectedAt)+' · Entrada '+fmt(h.entry)+'</span></div></div><div class="statusText '+o.cls+'">'+o.text+'</div></div>'}).join(''):'<div class="placeholder">Todavía no hay señales archivadas.</div>';
+ byId('history').innerHTML=rows.length?rows.slice(0,22).map(h=>{const o=outcome(h);return '<div class="entry"><div><strong>'+escapeHtml(h.symbol||h.name)+'</strong><div><span>'+time(h.detectedAt)+' · Entrada '+priceFor(h,h.entry)+'</span></div></div><div class="statusText '+o.cls+'">'+o.text+'</div></div>'}).join(''):'<div class="placeholder">Todavía no hay señales archivadas.</div>';
  const ev=Array.isArray(db.events)?db.events:[];
  byId('events').innerHTML=ev.length?ev.slice(0,14).map(e=>'<div class="entry"><div><strong>'+escapeHtml(e.symbol)+'</strong><div><span>'+time(e.at)+'</span></div></div><div class="statusText '+(e.to==='reject'?'bad':'good')+'">'+escapeHtml(e.from==='reject'?'DESCARTADA ↗ '+(statusNames[e.to]||e.to):(statusNames[e.from]||e.from)+' → '+(statusNames[e.to]||e.to))+'</div></div>').join(''):'<div class="placeholder">Aún no hay transiciones guardadas.</div>';
 }
@@ -177,8 +178,10 @@ function renderBrain(){
 function render(){
  if(!db)return;
  freshness();
- const a=allItems();byId('statTotal').textContent=a.length;byId('statSignals').textContent=a.filter(x=>x.status==='signal').length;
- byId('statWatch').textContent=a.filter(x=>x.status==='watch').length;byId('statRecovered').textContent=a.filter(x=>x.reconsidered).length;
+ const a=allItems();byId('statTotal').textContent=a.length;byId('statBuy').textContent=a.filter(x=>x.status==='signal'&&x.side==='buy').length;
+ byId('statSell').textContent=a.filter(x=>x.status==='signal'&&x.side==='sell').length;
+ byId('statWatch').textContent=a.filter(x=>x.status==='watch').length;const cov=db.spot?.coverage;
+ byId('coverage').innerHTML=cov?'<div class="monitor-title">BINANCE SPOT · CATÁLOGO COMPLETO</div><div class="monitor-main"><b>'+cov.catalogueAssets+'</b><span>criptomonedas distintas · '+cov.cataloguePairs+' pares operables</span></div><div class="monitor-small">Análisis con velas: '+cov.detailed+' · Velas insuficientes: '+cov.stale+' · Errores API: '+cov.apiErrors+' · Sin límite de 175 monedas.</div>':'<div class="monitor-title">BINANCE SPOT</div><div class="monitor-small">Esperando el primer escaneo de cobertura completa.</div>';
  renderBrain();highlight();listing();history();
 }
 async function fetchData(){
