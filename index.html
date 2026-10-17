@@ -77,12 +77,13 @@ select.search{cursor:pointer}.grow{flex:1}.source{font-size:11px;color:#94b2c0;m
 <div class="grow"></div><input id="search" class="search" aria-label="Buscar activo" placeholder="Buscar BTC, ICP, SOL…" type="search"/>
 <select class="search" id="filter" aria-label="Filtrar oportunidades"><option value="all">Todas las evaluadas</option><option value="signal">Señales</option><option value="buy">Sólo COMPRA</option><option value="sell">Sólo VENTA</option><option value="catalog">Sin velas recientes</option><option value="watch">En vigilancia</option><option value="reject">Descartadas</option><option value="new">Nuevas en 24h</option><option value="reconsidered">Recuperadas</option></select>
 <button id="refresh" type="button">↻ Actualizar vista</button></div>
-<div id="futuresNotice" class="monitor" style="display:none;margin-top:12px;border-color:#977951"><div class="monitor-title">BINANCE FUTURES · USDⓈ-M PERPETUOS</div><div class="monitor-small">Señales LONG y SHORT de datos de derivados, separadas de Spot. No se ejecutan operaciones ni se recomienda apalancamiento. Los futuros implican funding, riesgo de liquidación y posibles pérdidas superiores al margen.</div><div class="monitor-small" id="futuresMode">Comprobando la fuente de Futures…</div></div><p class="source" id="source">Datos pendientes</p><div id="cards" class="cards"><div class="placeholder">Cargando criptomonedas…</div></div><button class="loadmore" id="more" type="button" hidden>Ver más criptomonedas ↓</button></section>
+<div id="futuresNotice" class="monitor" style="display:none;margin-top:12px;border-color:#977951"><div class="monitor-title" id="futuresProviderTitle">FUTUROS PERPETUOS · BUSCANDO FUENTE</div><div class="monitor-small">Señales LONG y SHORT de datos de derivados, separadas de Spot. No se ejecutan operaciones ni se recomienda apalancamiento. Los futuros implican funding, riesgo de liquidación y posibles pérdidas superiores al margen.</div><div class="monitor-small" id="futuresMode">Comprobando la fuente de Futures…</div></div><p class="source" id="source">Datos pendientes</p><div id="cards" class="cards"><div class="placeholder">Cargando criptomonedas…</div></div><button class="loadmore" id="more" type="button" hidden>Ver más criptomonedas ↓</button></section>
 <section class="section"><h2 class="section-title">Aprendizaje por resultados</h2><p class="section-sub">Auditoría de TP1, TP2 y SL en Binance Spot usando velas posteriores a cada señal. No incluye ejecuciones reales, comisiones ni deslizamiento. El aprendizaje actual es estadístico y revisa señales comprobadas, no una red neuronal entrenada.</p><div id="performance" class="summary" style="margin-bottom:12px"></div><h3 class="section-title" id="historyTitle" style="font-size:15px">Últimas señales registradas</h3><div class="history" id="history"><div class="placeholder">Consultando historial…</div></div></section>
 <section class="section"><h2 class="section-title">Descartar y reconsiderar</h2><p class="section-sub">Se guarda el estado de los candidatos observados; si un activo vuelve a reunir condiciones, puede regresar a vigilancia o señal.</p><div class="history" id="events"><div class="placeholder">Sin movimientos de clasificación todavía.</div></div></section>
 <footer class="disclaimer">CRIPTO IA · Versión de radar automatizado, no inteligencia artificial entrenada ni asesoramiento financiero. Análisis basado en reglas matemáticas y datos públicos. VENTA Spot significa vender monedas que posees; no abre posiciones cortas. Los futuros pueden liquidar una posición, generar costes de funding y multiplicar las pérdidas: no se recomienda apalancamiento automático. Los nuevos tokens pueden ser fraudulentos, difíciles de vender o sufrir pérdidas totales. GitHub Actions programa las comprobaciones aproximadamente cada cinco minutos; puede retrasarse y no garantiza actividad ininterrumpida 24/7. Siempre se muestra la antigüedad de los datos para evitar confundirlos con cotizaciones en tiempo real.</footer>
 </div>
 <script src="./futures.js"></script>
+<script src="./gate-futures.js"></script>
 <script>
 'use strict';
 const byId=id=>document.getElementById(id);
@@ -94,7 +95,7 @@ const time=x=>{let d=new Date(x);return Number.isFinite(d.getTime())?d.toLocaleS
 const statusNames={signal:'SEÑAL',watch:'VIGILANCIA',reject:'DESCARTADA',catalog:'SIN VELAS'};
 const priceFor=(r,n)=>{const q=r.quoteAsset||'USDT',v=Number(n);if(r.kind!=='spot'||['USDT','USDC','FDUSD','USD1','TUSD','USDP','DAI'].includes(q))return fmt(n);return Number.isFinite(v)&&v>0?v.toPrecision(6)+' '+escapeHtml(q):'—';};
 let db=null,mode='spot',filter='all',visible=30,isLoading=false,browserFutures=null,futuresConnecting=false,lastFuturesAttempt=0;
-function urlFor(r){let u=String(r.url||'');if(/^https:\/\/(?:www\.)?(?:binance\.com|geckoterminal\.com|dexscreener\.com)\//i.test(u))return u;return r.kind==='dex'?'https://dexscreener.com/':'https://www.binance.com/en/markets/overview'}
+function urlFor(r){let u=String(r.url||'');if(/^https:\/\/(?:www\.)?(?:binance\.com|gate\.com|geckoterminal\.com|dexscreener\.com)\//i.test(u))return u;return r.kind==='dex'?'https://dexscreener.com/':'https://www.binance.com/en/markets/overview'}
 function link(r){return '<a href="'+escapeHtml(urlFor(r))+'" target="_blank" rel="noopener noreferrer">Abrir gráfico ↗</a>'}
 function ordered(list){const rank={signal:0,watch:1,reject:2,catalog:3};return list.slice().sort((a,b)=>(rank[a.status]??3)-(rank[b.status]??3)||Number(b.score||0)-Number(a.score||0))}
 function allItems(){if(!db)return [];return [...(db.spot?.data||[]),...(db.dex?.data||[])]}
@@ -115,12 +116,12 @@ function freshness(){
 }
 function highlight(){
  const list=rows(),r=list.find(x=>x.status==='signal')||list.find(x=>x.status==='watch');
- if(!r){byId('spotlight').className='feature wait';byId('spotlight').innerHTML='<div class="placeholder">'+(mode==='futures'&&modeData().error?'Binance Futures no disponible: '+escapeHtml(modeData().error):'No hay señales confirmadas ni oportunidades con datos suficientes.')+'</div>';return;}
+ if(!r){byId('spotlight').className='feature wait';byId('spotlight').innerHTML='<div class="placeholder">'+(mode==='futures'&&modeData().error?'Futures no disponible: '+escapeHtml(modeData().error):'No hay señales confirmadas ni oportunidades con datos suficientes.')+'</div>';return;}
  const isSignal=r.status==='signal',fresh=getFresh()?Date.now()-Date.parse(getFresh())<16*60000:false;
  byId('spotlight').className='feature'+(r.side==='sell'?' sell':isSignal?'':' watch');
  const w=(r.why||[]).slice(0,3).join(' · '),risks=(r.risks||[]).slice(0,2).join(' · ');
- byId('spotlight').innerHTML='<div><div class="headline">'+(isSignal?'● SEÑAL '+(r.side==='sell'?'VENTA':'COMPRA'):'◉ VIGILAR '+(r.side==='sell'?'BAJISTA':'ALCISTA'))+(fresh?' · DATOS RECIENTES':' · DATOS RETRASADOS')+'</div>'+
- '<div class="ft-symbol">'+escapeHtml(r.symbol||r.name)+'</div><div class="ft-chain">'+escapeHtml(r.name||'')+' · '+escapeHtml(r.chain||'')+' · '+escapeHtml(r.kind==='dex'?'Memecoin / DEX':r.kind==='futures'?'Binance Futures PERPETUO':'Binance Spot')+'</div>'+
+ byId('spotlight').innerHTML='<div><div class="headline">'+(isSignal?'● SEÑAL '+(r.kind==='futures'?(r.side==='sell'?'SHORT':'LONG'):(r.side==='sell'?'VENTA':'COMPRA')):'◉ VIGILAR '+(r.side==='sell'?'BAJISTA':'ALCISTA'))+(fresh?' · DATOS RECIENTES':' · DATOS RETRASADOS')+'</div>'+
+ '<div class="ft-symbol">'+escapeHtml(r.symbol||r.name)+'</div><div class="ft-chain">'+escapeHtml(r.name||'')+' · '+escapeHtml(r.chain||'')+' · '+escapeHtml(r.kind==='dex'?'Memecoin / DEX':r.kind==='futures'?(r.marketProvider==='Gate.io'?'Gate.io Futures · PERPETUO':'Binance Futures · PERPETUO'):'Binance Spot')+'</div>'+
  '<p>Motivos: '+escapeHtml(w||'Todavía no cumple todas las condiciones')+'</p>'+(risks?'<div class="reason">⚠ '+escapeHtml(risks)+'</div>':'')+
  '<div style="margin-top:13px"><span class="feature-price">'+priceFor(r,r.price)+'</span><span class="source" style="display:block">Puntuación '+escapeHtml(r.score)+'/100 · no es probabilidad</span></div>'+link(r)+'</div>'+
  '<div class="levels"><div class="level"><span>Entrada de referencia</span><b>'+priceFor(r,r.entry)+'</b></div><div class="level sl"><span>Stop loss</span><b>'+priceFor(r,r.stop)+'</b></div><div class="level tp"><span>TP1</span><b>'+priceFor(r,r.tp1)+'</b></div><div class="level tp"><span>TP2</span><b>'+priceFor(r,r.tp2)+'</b></div></div>';
@@ -132,7 +133,7 @@ function coin(r){
  const v2=r.kind==='dex'?compact(r.volume):(Number(r.volRatio)||0).toFixed(2)+'×';
  const title1=r.kind==='dex'?'Liquidez':'RSI 5m',title2=r.kind==='dex'?'Vol. 5m':'Vol. relativo';
  return '<article class="coin '+escapeHtml(r.status)+' '+(r.side==='sell'?'sell':'')+'"><div class="coin-top"><div><div class="coin-name">'+escapeHtml(r.symbol||r.name)+'</div><div class="coin-detail">'+escapeHtml(r.name||'')+' · '+escapeHtml(r.chain||'')+'</div></div><div class="score">'+(r.score==null?'—':escapeHtml(r.score))+'<small>PUNTOS</small></div></div>'+
- '<div class="tags"><span class="tag '+(r.status==='signal'?'good':r.status==='watch'?'warn':'bad')+'">'+state+'</span>'+(r.kind==='futures'?'<span class="tag warn">FUTURES PERPETUO</span>':'')+(r.side==='sell'?'<span class="tag bad">↓ BAJISTA</span>':r.side==='buy'?'<span class="tag good">↑ ALCISTA</span>':'')+(r.setupVersion==='FLOW_V2'?'<span class="tag good">FLOW V2</span>':r.setupVersion==='FUTURES_FLOW_1'?'<span class="tag warn">FLOW FUTURES</span>':'')+(r.isNew?'<span class="tag good">NUEVA 24 H</span>':'')+(r.reconsidered?'<span class="tag good">↺ RECUPERADA</span>':'')+'</div>'+
+ '<div class="tags"><span class="tag '+(r.status==='signal'?'good':r.status==='watch'?'warn':'bad')+'">'+state+'</span>'+(r.kind==='futures'?'<span class="tag warn">'+(r.marketProvider==='Gate.io'?'GATE.IO':'BINANCE')+' FUTURES</span>':'')+(r.side==='sell'?'<span class="tag bad">↓ BAJISTA</span>':r.side==='buy'?'<span class="tag good">↑ ALCISTA</span>':'')+(r.setupVersion==='FLOW_V2'?'<span class="tag good">FLOW V2</span>':r.setupVersion==='FUTURES_FLOW_1'?'<span class="tag warn">FLOW FUTURES</span>':r.setupVersion==='GATE_PERP_FLOW_V1'?'<span class="tag warn">GATE FLOW</span>':'')+(r.isNew?'<span class="tag good">NUEVA 24 H</span>':'')+(r.reconsidered?'<span class="tag good">↺ RECUPERADA</span>':'')+'</div>'+
  '<div class="coin-price">'+priceFor(r,r.price)+'</div><div class="coin-metrics"><div class="cm"><small>'+title1+'</small><b>'+v1+'</b></div><div class="cm"><small>'+title2+'</small><b>'+v2+'</b></div><div class="cm"><small>Impulso</small><b style="color:'+(green?'#56f1b2':'#ff99a6')+'">'+trend.toFixed(2)+'%</b></div></div>'+
  '<div class="why">✓ '+escapeHtml((r.why||[]).slice(0,3).join(' · ')||'Aún sin confirmación suficiente')+(r.setupVersion==='FLOW_V2'&&r.takerBuyPct!=null?' · Flujo comprador '+escapeHtml(r.takerBuyPct)+'%':'')+(r.kind==='futures'?'<p class="source">Funding '+(r.fundingRatePct==null?'no disponible':escapeHtml(r.fundingRatePct)+'%')+' · Riesgo en precio '+(r.riskPct==null?'—':escapeHtml(r.riskPct)+'%')+' · no incluye apalancamiento</p>':'')+'</div>'+(risky?'<div class="risk">⚠ '+escapeHtml(risky)+'</div>':'<div class="risk"></div>')+
  '<div class="coin-levels"><div><small>Entrada</small><b>'+priceFor(r,r.entry)+'</b></div><div><small>SL</small><b>'+priceFor(r,r.stop)+'</b></div><div><small>TP1</small><b>'+priceFor(r,r.tp1)+'</b></div><div><small>TP2</small><b>'+priceFor(r,r.tp2)+'</b></div></div>'+
@@ -183,15 +184,15 @@ function history(){
 function renderBrain(){
  if(mode==='futures'){
    byId('learningHeading').textContent='Motor Futures · LONG / SHORT independiente';
-   byId('learningDescription').textContent='Analiza velas de contratos perpetuos USDⓈ-M, presión agresiva, volumen, RSI, rupturas, funding y spread. No ejecuta operaciones, no ofrece apalancamiento y no mezcla estadísticas Spot.';
+   byId('learningDescription').textContent=modeData().provider==='Gate.io'?'Gate.io Futures USDT: analiza volumen, tendencias, calidad de cierre, rupturas, funding y spread. No mide presión taker en Gate. Los precios y las señales pertenecen a Gate.io, no Binance. No ejecuta operaciones.':'Binance USDⓈ-M: analiza velas, presión taker, volumen, rupturas, funding y spread. No ejecuta operaciones ni recomienda apalancamiento.';
    const perf=db.futuresPerformance||{},long=perf.LONG||{},short=perf.SHORT||{};
    const tiles=[['Señales LONG',long.all||0,'green'],['Señales SHORT',short.all||0,''],['TP auditados',(long.tp1||0)+(long.tp2||0)+(short.tp1||0)+(short.tp2||0),'green'],
      ['SL auditados',(long.sl||0)+(short.sl||0),'']];
    byId('brain').innerHTML=tiles.map(x=>'<div class="stat"><b class="'+x[2]+'">'+x[1]+'</b><small>'+x[0]+'</small></div>').join('');
    byId('brainNote').textContent=browserFutures?.data?.length?
-     'Futures consultados desde este celular: la lectura no continúa al cerrar la página y esas señales no tienen auditoría histórica en el servidor.':
+     'Futures '+(browserFutures.provider||'')+' consultados en este celular; no siguen al cerrar la página y sus señales no tienen auditoría del servidor.':
      db.futures?.error?'Fuente Futures del servidor: '+db.futures.error+' · Sin señales inventadas.':
-     'Auditoría Futures con velas posteriores a la señal; resultados teóricos y separados. El precio de liquidación depende del apalancamiento y margen de cada cuenta.';
+     'Fuente '+(db.futures?.provider||'sin identificar')+'. Auditoría Futures con velas posteriores; resultados teóricos y separados. El precio de liquidación depende del apalancamiento y margen.';
    return;
  }
  byId('learningHeading').textContent=mode==='dex'?'Radar de memecoins · detección temprana':'Motor inteligente · FLOW V2';
@@ -214,9 +215,10 @@ function render(){
  const a=rows();byId('statTotal').textContent=a.length;byId('statBuy').textContent=a.filter(x=>x.status==='signal'&&x.side==='buy').length;
  byId('statSell').textContent=a.filter(x=>x.status==='signal'&&x.side==='sell').length;
  byId('statWatch').textContent=a.filter(x=>x.status==='watch').length;const cov=modeData().coverage;
- byId('coverage').innerHTML=cov?'<div class="monitor-title">'+(mode==='futures'?'BINANCE FUTURES · CONTRATOS PERPETUOS':'BINANCE SPOT · CATÁLOGO COMPLETO')+'</div><div class="monitor-main"><b>'+(cov.partial?cov.detailed:cov.catalogueAssets)+'</b><span>'+(cov.partial?'revisados en este celular; '+cov.catalogueAssets+' en catálogo':cov.catalogueAssets+' activos revisados')+' · '+(mode==='futures'?cov.catalogueContracts:cov.cataloguePairs)+' pares/contratos</span></div><div class="monitor-small">Análisis con velas: '+cov.detailed+' · Velas insuficientes: '+cov.stale+' · Errores API: '+cov.apiErrors+' · Sin límite de 175 monedas.</div>':'<div class="monitor-title">BINANCE SPOT</div><div class="monitor-small">Esperando el primer escaneo de cobertura completa.</div>';
+ byId('futuresProviderTitle').textContent=mode==='futures'?'FUTUROS PERPETUOS · '+(modeData().provider||'FUENTE NO DISPONIBLE'):'';
+ byId('coverage').innerHTML=cov?'<div class="monitor-title">'+(mode==='futures'?(modeData().provider||'FUTURES')+' · CONTRATOS PERPETUOS':'BINANCE SPOT · CATÁLOGO COMPLETO')+'</div><div class="monitor-main"><b>'+(cov.partial?cov.detailed:cov.catalogueAssets)+'</b><span>'+(cov.partial?'revisados en este celular; '+cov.catalogueAssets+' en catálogo':cov.catalogueAssets+' activos revisados')+' · '+(mode==='futures'?cov.catalogueContracts:cov.cataloguePairs)+' pares/contratos</span></div><div class="monitor-small">Análisis con velas: '+cov.detailed+' · Velas insuficientes: '+cov.stale+' · Errores API: '+cov.apiErrors+' · Sin límite de 175 monedas.</div>':'<div class="monitor-title">BINANCE SPOT</div><div class="monitor-small">Esperando el primer escaneo de cobertura completa.</div>';
  byId('futuresNotice').style.display=mode==='futures'?'block':'none';
- byId('futuresMode').textContent=mode==='futures'?(futuresConnecting?'Conectando directamente con Binance Futures desde este dispositivo…':browserFutures?.data?.length?'Consulta directa desde tu celular · '+browserFutures.data.length+' contratos analizados · no sigue al cerrar esta pestaña':browserFutures?.error?'No se pudo conectar directamente: '+browserFutures.error:db.futures?.error?'Fuente del servidor no disponible: '+db.futures.error:'Futures consultados por el servidor'):' ';
+ byId('futuresMode').textContent=mode==='futures'?(futuresConnecting?'Buscando cotizaciones reales de futuros desde este dispositivo…':browserFutures?.data?.length?'Consulta desde tu celular: '+(browserFutures.provider||'fuente')+' · '+browserFutures.data.length+' contratos · no sigue al cerrar la página':browserFutures?.error?'Fuentes no disponibles desde el celular: '+browserFutures.error:db.futures?.error?'Servidor sin fuente: '+db.futures.error:'Datos reales desde servidor · '+(db.futures?.provider||'proveedor pendiente')):' ';
  renderBrain();highlight();listing();history();
 }
 async function fetchData(){
@@ -243,24 +245,30 @@ async function refresh(){
 }
 async function tryBrowserFutures(){
  if(mode!=='futures'||futuresConnecting||db?.futures?.data?.length)return;
- if(browserFutures?.data?.length && Date.now()-Date.parse(browserFutures.updatedAt)<180000)return;
+ if(browserFutures?.data?.length&&Date.now()-Date.parse(browserFutures.updatedAt)<180000)return;
  if(Date.now()-lastFuturesAttempt<180000)return;
- lastFuturesAttempt=Date.now();
- futuresConnecting=true;
+ lastFuturesAttempt=Date.now();futuresConnecting=true;
  if(db)render();
+ const errors=[];
  try{
-   if(!window.CriptoFutures?.scanFutures)throw Error('No se cargó el analizador de Futures');
-   // A mobile browser should not receive the full API-volume workload of the backend.
-   // Query the 30 highest-volume Futures contracts, not the whole market; label partial.
-   const result=await window.CriptoFutures.scanFutures({limit:30});
-   if(!Array.isArray(result.data)||result.data.length===0)throw Error('La API no devolvió contratos evaluables');
+   let result=null;
+   if(window.CriptoFutures?.scanFutures){
+     try{result=await window.CriptoFutures.scanFutures({limit:30});}
+     catch(e){errors.push('Binance: '+String(e.message||e));}
+   }
+   if(!result?.data?.length&&window.CriptoGateFutures?.scanGateFutures){
+     try{result=await window.CriptoGateFutures.scanGateFutures({limit:30});}
+     catch(e){errors.push('Gate.io: '+String(e.message||e));}
+   }
+   if(!Array.isArray(result?.data)||!result.data.length)throw Error(errors.join(' | ')||'Ningún mercado de futuros respondió');
    browserFutures={
-     data:result.data,updatedAt:new Date().toISOString(),source:'Binance Futures · lectura directa del dispositivo',
+     data:result.data,provider:result.provider||'Binance',updatedAt:new Date().toISOString(),
+     source:(result.provider||'Binance')+' Futures · lectura directa del celular',
      error:null,coverage:result.coverage
    };
  }catch(e){
-   browserFutures={data:[],updatedAt:null,source:'Binance Futures · lectura del dispositivo',
-     error:String(e?.message||e),coverage:null};
+   browserFutures={data:[],provider:null,updatedAt:null,
+     source:'Futures no disponibles',error:String(e.message||e),coverage:null};
  }finally{
    futuresConnecting=false;
    if(mode==='futures'&&db)render();
