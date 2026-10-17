@@ -75,14 +75,38 @@ function evaluateDex(p){
   if(!price || !liq || !count){blocked=true;risks.push('Cotización/actividad incompleta');}
   // Descubrimiento por perfiles y boosts es sesgado: nunca interpretar score como probabilidad.
   score=clamp(Math.round(score-6),0,100);
-  const signal=!blocked && score>=75 && accel>=1.25 && ratio>=1.2 && m5>=.25 && m5<=4.5 && h1<23 && age>=.5;
-  const status=signal?'signal':(!blocked&&score>=52?'watch':'reject');
+  const longSignal=!blocked&&score>=75&&accel>=1.25&&ratio>=1.2&&m5>=.25&&m5<=4.5&&h1<23&&age>=.5;
+  const sellReasons=[],sellRisks=[];
+  let sellScore=18;
+  if(liq>=25000){sellScore+=16;sellReasons.push('Liquidez para salir');}
+  else{sellScore-=25;sellRisks.push('Sin liquidez de salida');}
+  if(vol5>=2500&&accel>=1.5){sellScore+=22;sellReasons.push('Volumen vendedor acelerando');}
+  else if(vol5>900&&accel>=1)sellScore+=9;
+  else sellScore-=8;
+  if(count>=14&&ratio<=.72){sellScore+=18;sellReasons.push('Ventas dominantes '+Math.round(100/(ratio+1))+'%');}
+  else if(count>=9&&ratio<1)sellScore+=7;
+  else{sellScore-=11;sellRisks.push('No dominan las ventas');}
+  if(m5<=-.4&&m5>=-5.5){sellScore+=16;sellReasons.push('Caída temprana de 5 min');}
+  else if(m5< -9){sellScore-=21;sellRisks.push('Caída ya extendida');}
+  else if(m5>0)sellScore-=14;
+  if(h1<=-.9&&h1>=-22){sellScore+=12;sellReasons.push('Tendencia bajista 1 h');}
+  else if(h1<-40)sellScore-=17;
+  else if(h1>0)sellScore-=8;
+  if(h6<-95)sellScore-=12;
+  sellScore=clamp(Math.round(sellScore-6),0,100);
+  const sellSignal=!blocked&&sellScore>=75&&accel>=1.25&&ratio<=.72&&count>=14&&m5<=-.4&&m5>=-5.5&&h1<-.9&&age>=.5;
+  const down=sellSignal||(!longSignal&&sellScore>score);
+  const side=down?'sell':'buy';
+  const scoreFinal=down?sellScore:score;
+  const status=longSignal||sellSignal?'signal':(!blocked&&scoreFinal>=52?'watch':'reject');
   const slpct=clamp(Math.max(.045,Math.abs(m5)/100*1.5),.045,.14);
   const risk=price*slpct;
   const addr=(p.baseToken&&p.baseToken.address)||p.pairAddress||'';
   const chain=p.chainId||'desconocida',id='dex:'+chain+':'+addr;
   return {id,kind:'dex',chain,name:(p.baseToken&&p.baseToken.name)||'Token',symbol:(p.baseToken&&p.baseToken.symbol)||'?',price,
-    score,status,why,risks,entry:price,stop:price-risk,tp1:price+1.6*risk,tp2:price+2.4*risk,
+    score:scoreFinal,status,side,why:down?sellReasons:why,risks:down?sellRisks:risks,entry:price,
+    stop:down?price+risk:price-risk,tp1:down?Math.max(0,price-1.6*risk):price+1.6*risk,
+    tp2:down?Math.max(0,price-2.4*risk):price+2.4*risk,
     volume:vol5,liquidity:liq,change5:m5,change1:h1,accel:+accel.toFixed(2),buyRatio:+ratio.toFixed(2),
     isNew:age>=0&&age<24,newHours:Math.round(age*10)/10,origin:p.origin||'DEX Screener',
     url:p.viewUrl||('https://dexscreener.com/'+encodeURIComponent(chain)+'/'+encodeURIComponent(p.pairAddress||addr)),
@@ -294,7 +318,7 @@ function evaluateSpot(raw,t){
   const buyConfirmed=validCandidate&&!samplePenalty;
   const direction=sellConfirmed?'sell':buyConfirmed?'buy':bearScore>score?'sell':'buy';
   const signal=sellConfirmed||buyConfirmed;
-  const shadowCandidate=!signal&&(validCandidate&&samplePenalty||!sellPenalty&&false);
+  const shadowCandidate=!signal&&validCandidate&&samplePenalty&&direction==='buy';
   const chosenScore=direction==='sell'?bearScore:score;
   const status=signal?'signal':(!blocked&&chosenScore>=50?'watch':'reject');
   const risk=Math.max(1.5*A,last.c*.009);
@@ -446,7 +470,10 @@ async function verifySpotOutcomes(){
         const openTime=$(v[0]),closeTime=$(v[6]),high=$(v[2]),low=$(v[3]);
         if(openTime<start||closeTime>=Date.now()||!high||!low)continue;
         h.checkedUntil=closeTime;
-        const stop=low<=h.stop,firstTp=high>=h.tp1,secondTp=high>=h.tp2;
+        const down=h.side==='sell';
+        const stop=down?high>=h.stop:low<=h.stop;
+        const firstTp=down?low<=h.tp1:high>=h.tp1;
+        const secondTp=down?low<=h.tp2:high>=h.tp2;
         const at=new Date(closeTime).toISOString();
         if(!h.tp1At){
           if(stop && firstTp){
