@@ -180,7 +180,7 @@ function fallback(t,reason) {
     url:'https://www.binance.com/en/futures/'+encodeURIComponent(t.symbol)
   };
 }
-async function scanFutures() {
+async function scanFutures({limit=null}={}) {
   const [exchange,tickers,books,premiums]=await Promise.all([
     getJson(API+'/exchangeInfo',22000),
     getJson(API+'/ticker/24hr',22000),
@@ -204,7 +204,8 @@ async function scanFutures() {
        t.quoteAsset===old.quoteAsset&&num(t.quoteVolume)>num(old.quoteVolume))
       preferred.set(item.baseAsset,t);
   }
-  const items=[...preferred.values()].sort((a,b)=>a.baseAsset.localeCompare(b.baseAsset));
+  const allItems=[...preferred.values()].sort((a,b)=>a.baseAsset.localeCompare(b.baseAsset));
+  const items=Number.isInteger(limit)&&limit>0?allItems.slice().sort((a,b)=>num(b.quoteVolume)-num(a.quoteVolume)).slice(0,Math.min(limit,80)):allItems;
   if(!items.length)throw Error('Binance Futures no devolvió contratos perpetuos negociables');
   const rows=[];
   let detailed=0,stale=0,apiErrors=0;
@@ -228,7 +229,8 @@ async function scanFutures() {
   rows.sort((a,b)=>(ranks[a.status]??4)-(ranks[b.status]??4)||
     (b.score||0)-(a.score||0));
   const coverage={
-    catalogueContracts:all.length,catalogueAssets:items.length,detailed,stale,apiErrors,
+    catalogueContracts:all.length,catalogueAssets:allItems.length,selectedForDetail:items.length,detailed,stale,apiErrors,
+    partial:Boolean(Number.isInteger(limit)&&limit>0),
     usdtQuotes:items.filter(t=>t.quoteAsset==='USDT').length,
     usdcQuotes:items.filter(t=>t.quoteAsset==='USDC').length,
     completedAt:iso()
@@ -310,4 +312,5 @@ function futuresStats(hist) {
   }
   return outcomes;
 }
-module.exports={scanFutures,analyzeFuturesPair,appendFuturesSignals,auditFutures,futuresStats};
+if(typeof module!=='undefined'&&module.exports)module.exports={scanFutures,analyzeFuturesPair,appendFuturesSignals,auditFutures,futuresStats};
+if(typeof window!=='undefined')window.CriptoFutures={scanFutures};
