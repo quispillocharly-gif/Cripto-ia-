@@ -397,6 +397,9 @@ async function scanSpot(){
     usdQuoted:chosen.filter(t=>USD_QUOTES.has(t.quoteAsset)).length,otherQuotes:chosen.filter(t=>!USD_QUOTES.has(t.quoteAsset)).length,
     completedAt:now(),allVisited:true};
   console.log('Binance catálogo sin top-N',JSON.stringify(coverage));
+  console.log('Señales Spot: COMPRA',outcome.filter(r=>r.status==='signal'&&r.side==='buy').length,
+    'VENTA',outcome.filter(r=>r.status==='signal'&&r.side==='sell').length,
+    'evaluaciones bajistas',outcome.filter(r=>r.side==='sell').length);
   return {data:outcome,coverage};
 }
 function lifecycle(kind,rows){
