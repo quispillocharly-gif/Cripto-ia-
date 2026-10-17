@@ -3,6 +3,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const {scanFutures,appendFuturesSignals,auditFutures,futuresStats} = require('./futures');
+const {scanGateFutures,auditGateFutures} = require('./gate-futures');
 const PORT = Number(process.env.PORT || 3000);
 const STORE = process.env.DATA_PATH || '/data/cripto-ia.json';
 const PERIOD = 120000;
@@ -515,7 +516,13 @@ let busy=false;
 async function cycle(){
   if(busy)return;
   busy=true;state.running=true;state.scanStarted=now();console.log('Escaneo iniciado',state.scanStarted);
-  const rs=await Promise.allSettled([scanSpot(),scanDex(),scanFutures()]);
+  const futuresFeed=scanFutures().catch(async error=>{
+    console.warn('Binance Futures no disponible; consultando Gate.io como fuente distinta:',String(error.message||error));
+    const gate=await scanGateFutures();
+    gate.fallbackReason=String(error.message||error);
+    return gate;
+  });
+  const rs=await Promise.allSettled([scanSpot(),scanDex(),futuresFeed]);
   for(let i=0;i<rs.length;i++){
     const kind=['spot','dex','futures'][i],r=rs[i];
     if(r.status==='fulfilled'){
@@ -526,7 +533,9 @@ async function cycle(){
         lifecycle(kind,rows);
         appendHistory(rows);
       }
-      state[kind]={data:rows,updatedAt:now(),source:origins[kind],error:null,coverage:r.value.coverage||null};
+      state[kind]={data:rows,updatedAt:now(),source:kind==='futures'?(r.value.provider==='Gate.io'?'Gate.io USDT Futures · datos públicos reales':'Binance USDⓈ-M Futures'):origins[kind],
+        error:null,coverage:r.value.coverage||null,provider:kind==='futures'?(r.value.provider||'Binance'):null,
+        fallbackReason:kind==='futures'?(r.value.fallbackReason||null):null};
       console.log(kind,'analizados',rows.length,'señales',rows.filter(x=>x.status==='signal').length);
     }else {
       state[kind].error=String(r.reason && r.reason.message || r.reason);
@@ -534,7 +543,8 @@ async function cycle(){
     }
   }
   try{await verifySpotOutcomes();}catch(e){console.warn('Falló auditoría de objetivos Spot:',e.message);}
-  try{await auditFutures(state.futuresHistory);}catch(e){console.warn('Falló auditoría Futures:',e.message);}
+  try{await auditFutures(state.futuresHistory);}catch(e){console.warn('Falló auditoría Binance Futures:',e.message);}
+  try{await auditGateFutures(state.futuresHistory);}catch(e){console.warn('Falló auditoría Gate Futures:',e.message);}
   state.futuresPerformance=futuresStats(state.futuresHistory);
   state.intelligence={currentModel:'FLOW_V2',legacy:evidenceFor('spot',null),current:evidenceFor('spot','FLOW_V2'),bearish:evidenceFor('spot','FLOW_BEAR_V1'),updatedAt:now()};
   state.scans++;state.running=false;state.scanFinished=now();busy=false;persist();
