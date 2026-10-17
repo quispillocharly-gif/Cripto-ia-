@@ -254,21 +254,64 @@ function evaluateSpot(raw,t){
   if(priceDeviation>.025)risks.push('Precio y vela inconsistentes: descartar');
   if(blocked)risks.push('Mercado ilíquido o volatilidad insuficiente');
   score=clamp(Math.round(score),0,100);
+  const trough=Math.min(...older.slice(-20).map(b=>b.l));
+  const breakdown=last.c<trough;
+  const eSell=evidenceFor('spot','FLOW_BEAR_V1');
+  const sellReasons=[],sellRisks=[];
+  let bearScore=12;
+  if(e20.at(-1)<e50.at(-1)&&last.c<e20.at(-1)){bearScore+=22;sellReasons.push('EMA bajista');}
+  else{bearScore-=10;sellRisks.push('Tendencia bajista no confirmada');}
+  if(slope<-.05){bearScore+=10;sellReasons.push('EMA20 descendiendo');}
+  else if(slope>0)bearScore-=9;
+  if(R>=32&&R<=51){bearScore+=16;sellReasons.push('RSI bajista');}
+  else if(R<25){bearScore-=18;sellRisks.push('Sobreventa extrema');}
+  else if(R>57)bearScore-=12;
+  if(vr>=1.6){bearScore+=20;sellReasons.push('Volumen vendedor alto');}
+  else if(vr>=1.15)bearScore+=10;
+  else bearScore-=6;
+  if(breakdown){bearScore+=18;sellReasons.push('Ruptura de soporte 20 velas');}
+  else bearScore-=5;
+  if(momentum<-.12&&momentum>-1.9){bearScore+=11;sellReasons.push('Caída temprana 3 velas');}
+  else if(momentum<-3.1){bearScore-=17;sellRisks.push('Caída extendida');}
+  else if(momentum>.2)bearScore-=6;
+  if(takerShare!==null){
+    if(takerShare<=.44){bearScore+=12;sellReasons.push('Ventas ejecutadas '+Math.round((1-takerShare)*100)+'%');}
+    else if(takerShare<.485){bearScore+=5;}
+    else if(takerShare>.52){bearScore-=20;sellRisks.push('Compras dominantes');}
+  }
+  const lowerWick=clamp((Math.min(last.o,last.c)-last.l)/candleRange,0,1);
+  if(closePosition<=.24&&lowerWick<=.2){bearScore+=9;sellReasons.push('Cierre bajista sin rebote');}
+  else if(closePosition>.42||lowerWick>.36){bearScore-=17;sellRisks.push('Rechazo inferior');}
+  if(spreadPct!==null&&spreadPct>.15)bearScore-=spreadPct>.35?20:8;
+  bearScore=clamp(Math.round(bearScore),0,100);
+  const sellFlow=takerShare!==null&&takerShare<=.485&&closePosition<=.33&&lowerWick<=.3&&last.c<last.o;
+  const sellPenalty=eSell.validated&&eSell.smoothedHitRate<36;
+  const sellConfirmed=!blocked&&bearScore>=78&&breakdown&&vr>=1.15&&R>=30&&R<=53&&
+    momentum<-.12&&momentum>-2.8&&sellFlow&&!sellPenalty;
   const samplePenalty=e.validated&&e.smoothedHitRate<36;
   if(samplePenalty)risks.push('Historial de este modelo aún desfavorable');
   const validCandidate=!blocked && score>=78 && breakout && vr>=1.15 && R<=67 && momentum<2.8 && microPass;
-  const signal=validCandidate && !samplePenalty;
-  const shadowCandidate=validCandidate&&samplePenalty;
-  const status=signal?'signal':(!blocked&&score>=50?'watch':'reject');
+  const buyConfirmed=validCandidate&&!samplePenalty;
+  const direction=sellConfirmed?'sell':buyConfirmed?'buy':bearScore>score?'sell':'buy';
+  const signal=sellConfirmed||buyConfirmed;
+  const shadowCandidate=!signal&&(validCandidate&&samplePenalty||!sellPenalty&&false);
+  const chosenScore=direction==='sell'?bearScore:score;
+  const status=signal?'signal':(!blocked&&chosenScore>=50?'watch':'reject');
   const risk=Math.max(1.5*A,last.c*.009);
   const id='spot:'+t.symbol;
+  const down=direction==='sell';
+  const reasons=down?sellReasons:why;
+  const warnings=down?sellRisks:risks;
+  if(down&&sellPenalty)warnings.push('Historial de señales bajistas todavía desfavorable');
   return {id,kind:'spot',chain:'Binance Spot',symbol:t.baseAsset||t.symbol.replace(/USDT$/,''),name:t.symbol,quoteAsset:t.quoteAsset||'USDT',price:$(t.lastPrice)||last.c,
-    score,status,why,risks,entry:last.c,stop:last.c-risk,tp1:last.c+1.7*risk,tp2:last.c+2.5*risk,
+    side:direction,score:chosenScore,status,why:reasons,risks:warnings,entry:last.c,
+    stop:down?last.c+risk:last.c-risk,tp1:down?Math.max(0,last.c-1.7*risk):last.c+1.7*risk,
+    tp2:down?Math.max(0,last.c-2.5*risk):last.c+2.5*risk,
     volume:$(t.quoteVolume),change5:momentum,change1:$(t.priceChangePercent),volRatio:+vr.toFixed(2),rsi:+R.toFixed(1),origin:'Binance Spot',
     takerBuyPct:takerShare===null?null:+(100*takerShare).toFixed(1),
     closeQuality:+(100*closePosition).toFixed(1),upperWickPct:+(100*upperWick).toFixed(1),
     spreadPct:spreadPct===null?null:+spreadPct.toFixed(3),
-    setupVersion:'FLOW_V2',empirical:e,shadowCandidate,detailLevel:'ohlc',
+    setupVersion:down?'FLOW_BEAR_V1':'FLOW_V2',empirical:down?eSell:e,shadowCandidate,detailLevel:'ohlc',
     url:'https://www.binance.com/en/trade/'+encodeURIComponent(t.baseAsset||t.symbol.replace(/USDT$/,''))+'_'+encodeURIComponent(t.quoteAsset||'USDT'),
     signalKey:id+':'+last.time,updatedAt:now(),candleClosedAt:new Date(last.time).toISOString()};
 }
@@ -362,9 +405,9 @@ function appendHistory(rows){
   const existing=new Set(state.history.map(x=>x.signalKey));
   for(const r of rows){
     if((r.status==='signal'||r.shadowCandidate) && !existing.has(r.signalKey)){
-      const {id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,setupVersion,takerBuyPct,spreadPct,closeQuality,shadowCandidate}=r;
+      const {id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,setupVersion,takerBuyPct,spreadPct,closeQuality,shadowCandidate,side,quoteAsset}=r;
       state.history.unshift({id,kind,name,symbol,chain,entry,stop,tp1,tp2,score,signalKey,url,
-        setupVersion:setupVersion||'LEGACY',takerBuyPct,spreadPct,closeQuality,shadow:!!shadowCandidate,detectedAt:now(),outcome:'open'});
+        setupVersion:setupVersion||'LEGACY',takerBuyPct,spreadPct,closeQuality,shadow:!!shadowCandidate,side:side||'buy',quoteAsset:quoteAsset||'USDT',detectedAt:now(),outcome:'open'});
       existing.add(signalKey);
     }
   }
@@ -452,7 +495,7 @@ async function cycle(){
     }
   }
   try{await verifySpotOutcomes();}catch(e){console.warn('Falló auditoría de objetivos:',e.message);}
-  state.intelligence={currentModel:'FLOW_V2',legacy:evidenceFor('spot',null),current:evidenceFor('spot','FLOW_V2'),updatedAt:now()};
+  state.intelligence={currentModel:'FLOW_V2',legacy:evidenceFor('spot',null),current:evidenceFor('spot','FLOW_V2'),bearish:evidenceFor('spot','FLOW_BEAR_V1'),updatedAt:now()};
   state.scans++;state.running=false;state.scanFinished=now();busy=false;persist();
 }
 function reply(res,code,data){
