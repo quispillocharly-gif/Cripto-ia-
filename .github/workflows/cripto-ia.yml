@@ -8,6 +8,8 @@ on:
     branches: [main]
     paths:
       - 'server.js'
+      - 'futures.js'
+      - 'tests/futures.test.js'
       - 'public/index.html'
       - 'index.html'
       - 'package.json'
@@ -40,11 +42,15 @@ jobs:
           node-version: '22'
 
       - name: Unificar interfaz principal y GitHub Pages
-        run: cp index.html public/index.html
+        run: |
+          cp index.html public/index.html
+          cp futures.js public/futures.js
 
       - name: Validar sintaxis del motor y del panel
         run: |
           node --check server.js
+          node --check futures.js
+          node tests/futures.test.js
           node -e "const fs=require('fs');const s=fs.readFileSync('public/index.html','utf8');const a=s.indexOf('<script>'),b=s.indexOf('</script>',a);if(a<0||b<0)throw Error('Panel sin script');new Function(s.slice(a+8,b));"
 
       - name: Escanear mercado y guardar resultados
