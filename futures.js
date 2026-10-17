@@ -246,16 +246,16 @@ function appendFuturesSignals(history,rows) {
   for(const r of rows){
     if(r.status!=='signal'||seen.has(r.signalKey))continue;
     const {id,kind,symbol,name,quoteAsset,side,direction,entry,stop,tp1,tp2,score,
-      signalKey,url,setupVersion,fundingRatePct,spreadPct,riskPct}=r;
+      signalKey,url,setupVersion,fundingRatePct,spreadPct,riskPct,marketProvider}=r;
     result.unshift({id,kind,symbol,name,quoteAsset,side,direction,entry,stop,tp1,tp2,score,
-      signalKey,url,setupVersion,fundingRatePct,spreadPct,riskPct,
+      signalKey,url,setupVersion,fundingRatePct,spreadPct,riskPct,marketProvider:marketProvider||'Binance',
       detectedAt:iso(),outcome:'open'});
     seen.add(signalKey);
   }
   return result.slice(0,MAX_HISTORY);
 }
 async function auditFutures(hist) {
-  const open=hist.filter(h=>h.outcome==='open'||h.outcome==='tp1'&&!h.closedAt);
+  const open=hist.filter(h=>h.marketProvider!=='Gate.io'&&(h.outcome==='open'||h.outcome==='tp1'&&!h.closedAt));
   let assessed=0,failures=0;
   for(let i=0;i<Math.min(open.length,35);i+=6){
     const pending=open.slice(i,i+6);
