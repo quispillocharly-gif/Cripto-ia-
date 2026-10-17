@@ -9,9 +9,9 @@ const $ = (n) => Number(n) || 0;
 const clamp = (x,a,b) => Math.min(b,Math.max(a,x));
 const pause = ms => new Promise(r => setTimeout(r,ms));
 const now = () => new Date().toISOString();
-const origins = {spot:'Binance · mercado USDT con examen rotativo',dex:'DEX Screener + GeckoTerminal · nuevos pools y tendencias (cobertura parcial)'};
+const origins = {spot:'Binance Spot · inventario completo y velas por activo',dex:'DEX Screener + GeckoTerminal · nuevos pools y tendencias (cobertura parcial)'};
 let state = {
-  version:'2.0.0',startedAt:now(),running:false,scans:0,scanStarted:null,scanFinished:null,
+  version:'2.3.0',startedAt:now(),running:false,scans:0,scanStarted:null,scanFinished:null,
   spot:{updatedAt:null,source:origins.spot,error:'Esperando primer escaneo',data:[]},
   dex:{updatedAt:null,source:origins.dex,error:'Esperando primer escaneo',data:[]},
   history:[],seen:{},events:[]
@@ -33,9 +33,23 @@ function persist(){
   catch(e){console.warn('No se guardó el estado:',e.message);}
 }
 async function json(url,timeout=15000){
-  const r=await fetch(url,{headers:{accept:'application/json','user-agent':'CriptoIARadar/1.0'},signal:AbortSignal.timeout(timeout)});
-  if(!r.ok)throw Error('Fuente HTTP '+r.status);
-  return r.json();
+  for(let n=0;n<3;n++){
+    try{
+      const r=await fetch(url,{headers:{accept:'application/json','user-agent':'CriptoIARadar/2.3'},signal:AbortSignal.timeout(timeout)});
+      if(!r.ok){
+        if((r.status===429||r.status===418)&&n<2){
+          const retry=Number(r.headers.get('retry-after'));
+          await pause(retry>0?Math.min(retry*1000,60000):12000*(n+1));continue;
+        }
+        throw Error('API HTTP '+r.status);
+      }
+      return r.json();
+    }catch(e){
+      if(n===2||/HTTP 4\d\d/.test(String(e.message)))throw e;
+      await pause(700*(n+1));
+    }
+  }
+  throw Error('Consulta API sin respuesta');
 }
 function evaluateDex(p){
   const liq=$(p.liquidity && p.liquidity.usd),price=$(p.priceUsd),vol=p.volume||{},tx=p.txns||{},pc=p.priceChange||{};
@@ -248,45 +262,75 @@ function evaluateSpot(raw,t){
   const status=signal?'signal':(!blocked&&score>=50?'watch':'reject');
   const risk=Math.max(1.5*A,last.c*.009);
   const id='spot:'+t.symbol;
-  return {id,kind:'spot',chain:'Binance Spot',symbol:t.symbol.replace(/USDT$/,''),name:t.symbol,price:$(t.lastPrice)||last.c,
+  return {id,kind:'spot',chain:'Binance Spot',symbol:t.baseAsset||t.symbol.replace(/USDT$/,''),name:t.symbol,quoteAsset:t.quoteAsset||'USDT',price:$(t.lastPrice)||last.c,
     score,status,why,risks,entry:last.c,stop:last.c-risk,tp1:last.c+1.7*risk,tp2:last.c+2.5*risk,
     volume:$(t.quoteVolume),change5:momentum,change1:$(t.priceChangePercent),volRatio:+vr.toFixed(2),rsi:+R.toFixed(1),origin:'Binance Spot',
     takerBuyPct:takerShare===null?null:+(100*takerShare).toFixed(1),
     closeQuality:+(100*closePosition).toFixed(1),upperWickPct:+(100*upperWick).toFixed(1),
     spreadPct:spreadPct===null?null:+spreadPct.toFixed(3),
-    setupVersion:'FLOW_V2',empirical:e,shadowCandidate,
-    url:'https://www.binance.com/en/trade/'+encodeURIComponent(t.symbol.replace(/USDT$/,''))+'_USDT',
+    setupVersion:'FLOW_V2',empirical:e,shadowCandidate,detailLevel:'ohlc',
+    url:'https://www.binance.com/en/trade/'+encodeURIComponent(t.baseAsset||t.symbol.replace(/USDT$/,''))+'_'+encodeURIComponent(t.quoteAsset||'USDT'),
     signalKey:id+':'+last.time,updatedAt:now(),candleClosedAt:new Date(last.time).toISOString()};
 }
+// Inventory every Binance Spot TRADING pair. For each base asset, prefer its
+// most liquid stable-USD quote; otherwise use a major alternative quote.
+// All unique assets get candles, not a top-N subset. Unavailable data is tagged.
+const PREFERRED_QUOTES=['USDT','USDC','FDUSD','USD1','TUSD','USDP','DAI','BTC','ETH','BNB','EUR','TRY','BRL'];
+const USD_QUOTES=new Set(['USDT','USDC','FDUSD','USD1','TUSD','USDP','DAI']);
+function catalogueRow(t,reason){
+  return {id:'spot:'+t.symbol,kind:'spot',chain:'Binance Spot',symbol:t.baseAsset,name:t.symbol,
+    quoteAsset:t.quoteAsset,status:'catalog',side:'none',score:null,price:$(t.lastPrice),
+    entry:null,stop:null,tp1:null,tp2:null,volume:$(t.quoteVolume),change5:null,change1:$(t.priceChangePercent),
+    why:['Par operable detectado en Binance'],risks:[reason],detailLevel:'catalogue',
+    updatedAt:now(),origin:'Binance Spot',url:'https://www.binance.com/en/trade/'+encodeURIComponent(t.baseAsset)+'_'+encodeURIComponent(t.quoteAsset)};
+}
 async function scanSpot(){
-  const tickers=await json('https://data-api.binance.vision/api/v3/ticker/24hr',20000);
-  if(!Array.isArray(tickers))throw Error('Listado Binance inválido');
-  const excluded=new Set(['USDC','USDP','FDUSD','TUSD','DAI','BUSD','EUR','TRY','BRL','USDE','USD1','PAXG','XAUT']);
-  const valid=tickers.filter(t=>{
-    const s=t.symbol||'',base=s.replace(/USDT$/,'');
-    return s.endsWith('USDT')&&!excluded.has(base)&&!/(UP|DOWN|BULL|BEAR)$/.test(base)&&$(t.quoteVolume)>=300000;
-  });
-  // Evaluate all accessible tickers cheaply, then deeper candles on a rotating broad shortlist.
-  const byVol=[...valid].sort((a,b)=>$(b.quoteVolume)-$(a.quoteVolume)).slice(0,65);
-  const byChange=[...valid].filter(t=>$(t.priceChangePercent)>-9&&$(t.priceChangePercent)<26)
-    .sort((a,b)=>$(b.priceChangePercent)-$(a.priceChangePercent)).slice(0,45);
-  const ranked=[...valid].sort((a,b)=>$(b.count)-$(a.count));
-  const rotating=ranked.slice((state.scans*80)%Math.max(1,ranked.length),(state.scans*80)%Math.max(1,ranked.length)+80);
-  const selected=[...new Map([...byVol,...byChange,...rotating].map(t=>[t.symbol,t])).values()].slice(0,175);
-  let out=[],fail=0;
-  for(let i=0;i<selected.length;i+=9){
-    const part=selected.slice(i,i+9);
-    const rs=await Promise.allSettled(part.map(t=>json('https://data-api.binance.vision/api/v3/klines?symbol='+encodeURIComponent(t.symbol)+'&interval=5m&limit=110',17000)));
-    for(let j=0;j<part.length;j++){
-      if(rs[j].status==='fulfilled'&&Array.isArray(rs[j].value)){
-        const v=evaluateSpot(rs[j].value,part[j]);if(v)out.push(v);else fail++;
-      }else fail++;
-    }
-    if(i+9<selected.length)await pause(260);
+  const root='https://data-api.binance.vision/api/v3/';
+  const [exchange,tickers]=await Promise.all([
+    json(root+'exchangeInfo?permissions=SPOT',25000),
+    json(root+'ticker/24hr',25000)
+  ]);
+  if(!Array.isArray(exchange?.symbols)||!Array.isArray(tickers))
+    throw Error('Catálogo Spot de Binance incompleto');
+  const marketList=exchange.symbols.filter(s=>s.status==='TRADING'&&s.isSpotTradingAllowed!==false&&s.baseAsset&&s.quoteAsset);
+  const tickerBySymbol=new Map(tickers.map(t=>[t.symbol,t]));
+  const best=new Map();
+  function preference(t){
+    const idx=PREFERRED_QUOTES.indexOf(t.quoteAsset);
+    return (idx<0?PREFERRED_QUOTES.length:idx)*100000-Math.min(99999,$(t.quoteVolume)/1000);
   }
-  if(!out.length)throw Error('No se recibieron velas Binance; fallos '+fail);
-  console.log('Binance catálogo',tickers.length,'líquidos',valid.length,'examinados',out.length,'fallos',fail);
-  return out.sort((a,b)=>b.score-a.score);
+  for(const s of marketList){
+    const t=tickerBySymbol.get(s.symbol);
+    if(!t||$(t.lastPrice)<=0)continue;
+    const candidate={...t,baseAsset:s.baseAsset,quoteAsset:s.quoteAsset};
+    const old=best.get(s.baseAsset);
+    if(!old||preference(candidate)<preference(old))best.set(s.baseAsset,candidate);
+  }
+  const chosen=[...best.values()].sort((a,b)=>a.baseAsset.localeCompare(b.baseAsset));
+  const outcome=[];
+  let detailed=0,stale=0,errors=0;
+  const batchSize=10;
+  for(let i=0;i<chosen.length;i+=batchSize){
+    const batch=chosen.slice(i,i+batchSize);
+    const rs=await Promise.allSettled(batch.map(t=>json(root+'klines?symbol='+encodeURIComponent(t.symbol)+'&interval=5m&limit=110',18000)));
+    for(let j=0;j<batch.length;j++){
+      const t=batch[j],v=rs[j];
+      if(v.status==='fulfilled'&&Array.isArray(v.value)){
+        const row=evaluateSpot(v.value,t);
+        if(row){outcome.push(row);detailed++;}
+        else{outcome.push(catalogueRow(t,'Velas antiguas o insuficientes, sin señal'));stale++;}
+      }else{outcome.push(catalogueRow(t,'Fuente de velas no respondió; sin señal'));errors++;}
+    }
+    if(i+batchSize<chosen.length)await pause(260);
+  }
+  if(!chosen.length)throw Error('No hay activos Spot operables en la fuente');
+  const ranking={signal:0,watch:1,reject:2,catalog:3};
+  outcome.sort((a,b)=>(ranking[a.status]??4)-(ranking[b.status]??4)||(Number(b.score)||0)-(Number(a.score)||0));
+  const coverage={cataloguePairs:marketList.length,catalogueAssets:chosen.length,detailed,stale,apiErrors:errors,
+    usdQuoted:chosen.filter(t=>USD_QUOTES.has(t.quoteAsset)).length,otherQuotes:chosen.filter(t=>!USD_QUOTES.has(t.quoteAsset)).length,
+    completedAt:now(),allVisited:true};
+  console.log('Binance catálogo sin top-N',JSON.stringify(coverage));
+  return {data:outcome,coverage};
 }
 function lifecycle(kind,rows){
   const prev=state.seen||{},events=state.events||[];
@@ -397,10 +441,11 @@ async function cycle(){
   for(let i=0;i<rs.length;i++){
     const kind=i===0?'spot':'dex',r=rs[i];
     if(r.status==='fulfilled'){
-      lifecycle(kind,r.value);
-      state[kind]={data:r.value,updatedAt:now(),source:origins[kind],error:null};
-      appendHistory(r.value);
-      console.log(kind,'analizados',r.value.length,'señales',r.value.filter(x=>x.status==='signal').length);
+      const rows=Array.isArray(r.value)?r.value:r.value.data;
+      lifecycle(kind,rows);
+      state[kind]={data:rows,updatedAt:now(),source:origins[kind],error:null,coverage:r.value.coverage||null};
+      appendHistory(rows);
+      console.log(kind,'analizados',rows.length,'señales',rows.filter(x=>x.status==='signal').length);
     }else {
       state[kind].error=String(r.reason && r.reason.message || r.reason);
       console.error(kind,state[kind].error);
