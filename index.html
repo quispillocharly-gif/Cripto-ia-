@@ -60,6 +60,17 @@ select.search{cursor:pointer}.grow{flex:1}.source{font-size:11px;color:#94b2c0;m
 <section class="hero"><div><div class="eyebrow">MERCADO CRIPTO · SEÑALES Y DESCUBRIMIENTO</div><h1>Tu radar.<br><strong>Directo a las señales.</strong></h1><p class="lead">Criptomonedas, memecoins y nuevos pools en una sola pantalla. Clasifica oportunidades, descarta señales débiles y vuelve a evaluarlas cuando cambian las condiciones.</p></div>
 <div class="monitor"><div class="monitor-title">CENTRO DE ANÁLISIS · ESTADO</div><div class="monitor-main"><b id="monitorAge">—</b><span id="monitorStatus">Conectando al radar</span></div><div class="monitor-small" id="monitorDetail">Consultando los últimos resultados publicados…</div><div class="monitor-small" id="sourceHealth"></div></div></section>
 <div class="summary"><div class="stat"><b id="statTotal">—</b><small>Activos del último escaneo</small></div><div class="stat"><b class="green" id="statSignals">—</b><small>Señales detectadas</small></div><div class="stat"><b class="yellow" id="statWatch">—</b><small>En vigilancia</small></div><div class="stat"><b id="statRecovered">—</b><small>Reconsideradas</small></div></div>
+<section class="section" id="learning">
+<h2 class="section-title">Motor inteligente · FLOW V2</h2>
+<p class="section-sub">No considera el puntaje como probabilidad. Para Spot evalúa la presión compradora real, el rechazo de velas y el spread antes de confirmar una señal. Aprende estadísticamente de los resultados cerrados; el modelo necesita suficientes observaciones nuevas antes de valorar su precisión.</p>
+<div id="brain" class="summary" style="margin-bottom:9px">
+<div class="stat"><b>—</b><small>Evaluaciones comprobadas</small></div>
+<div class="stat"><b>—</b><small>TP históricos</small></div>
+<div class="stat"><b>—</b><small>SL históricos</small></div>
+<div class="stat"><b>—</b><small>Modelo actual</small></div>
+</div>
+<p id="brainNote" class="section-sub" style="margin:6px 0 0">Recuperando evidencia del sistema…</p>
+</section>
 <section class="section"><div class="eyebrow">OPORTUNIDAD DESTACADA</div><div id="spotlight" class="feature wait"><div class="placeholder">Recuperando los resultados del radar…</div></div><p class="source" id="spotlightNote">Una señal no es una orden automática de compra ni una garantía de rentabilidad.</p></section>
 <section class="section" id="scanner"><h2 class="section-title">Radar de criptomonedas</h2><p class="section-sub">Todas las evaluadas en el ciclo, con las mejores oportunidades primero. Los números 0–100 son puntuaciones heurísticas, no porcentajes de acierto.</p>
 <div class="toolbar"><div class="tabs"><button class="active" id="tabSpot" type="button">◆ Criptomonedas</button><button id="tabDex" type="button">◈ Memecoins / DEX</button></div>
@@ -67,7 +78,7 @@ select.search{cursor:pointer}.grow{flex:1}.source{font-size:11px;color:#94b2c0;m
 <select class="search" id="filter" aria-label="Filtrar oportunidades"><option value="all">Todas las evaluadas</option><option value="signal">Señales</option><option value="watch">En vigilancia</option><option value="reject">Descartadas</option><option value="new">Nuevas en 24h</option><option value="reconsidered">Recuperadas</option></select>
 <button id="refresh" type="button">↻ Actualizar</button></div>
 <p class="source" id="source">Datos pendientes</p><div id="cards" class="cards"><div class="placeholder">Cargando criptomonedas…</div></div><button class="loadmore" id="more" type="button" hidden>Ver más criptomonedas ↓</button></section>
-<section class="section"><h2 class="section-title">Aprendizaje por resultados</h2><p class="section-sub">Auditoría de TP1, TP2 y SL en Binance Spot usando velas posteriores a cada señal. No incluye ejecuciones reales, comisiones ni deslizamiento. No existe todavía entrenamiento automático del modelo.</p><div id="performance" class="summary" style="margin-bottom:12px"></div><h3 class="section-title" style="font-size:15px">Últimas señales registradas</h3><div class="history" id="history"><div class="placeholder">Consultando historial…</div></div></section>
+<section class="section"><h2 class="section-title">Aprendizaje por resultados</h2><p class="section-sub">Auditoría de TP1, TP2 y SL en Binance Spot usando velas posteriores a cada señal. No incluye ejecuciones reales, comisiones ni deslizamiento. El aprendizaje actual es estadístico y revisa señales comprobadas, no una red neuronal entrenada.</p><div id="performance" class="summary" style="margin-bottom:12px"></div><h3 class="section-title" style="font-size:15px">Últimas señales registradas</h3><div class="history" id="history"><div class="placeholder">Consultando historial…</div></div></section>
 <section class="section"><h2 class="section-title">Descartar y reconsiderar</h2><p class="section-sub">Se guarda el estado de los candidatos observados; si un activo vuelve a reunir condiciones, puede regresar a vigilancia o señal.</p><div class="history" id="events"><div class="placeholder">Sin movimientos de clasificación todavía.</div></div></section>
 <footer class="disclaimer">CRIPTO IA · Versión de radar automatizado, no inteligencia artificial entrenada ni asesoramiento financiero. Análisis basado en reglas matemáticas y datos públicos. Los nuevos tokens pueden ser fraudulentos, difíciles de vender o sufrir pérdidas totales. GitHub Actions programa las comprobaciones aproximadamente cada cinco minutos; puede retrasarse y no garantiza actividad ininterrumpida 24/7. Siempre se muestra la antigüedad de los datos para evitar confundirlos con cotizaciones en tiempo real.</footer>
 </div>
@@ -117,9 +128,9 @@ function coin(r){
  const v2=r.kind==='dex'?compact(r.volume):(Number(r.volRatio)||0).toFixed(2)+'×';
  const title1=r.kind==='dex'?'Liquidez':'RSI 5m',title2=r.kind==='dex'?'Vol. 5m':'Vol. relativo';
  return '<article class="coin '+escapeHtml(r.status)+'"><div class="coin-top"><div><div class="coin-name">'+escapeHtml(r.symbol||r.name)+'</div><div class="coin-detail">'+escapeHtml(r.name||'')+' · '+escapeHtml(r.chain||'')+'</div></div><div class="score">'+escapeHtml(r.score)+'<small>PUNTOS</small></div></div>'+
- '<div class="tags"><span class="tag '+(r.status==='signal'?'good':r.status==='watch'?'warn':'bad')+'">'+state+'</span>'+(r.isNew?'<span class="tag good">NUEVA 24 H</span>':'')+(r.reconsidered?'<span class="tag good">↺ RECUPERADA</span>':'')+'</div>'+
+ '<div class="tags"><span class="tag '+(r.status==='signal'?'good':r.status==='watch'?'warn':'bad')+'">'+state+'</span>'+(r.setupVersion==='FLOW_V2'?'<span class="tag good">FLOW V2</span>':'')+(r.isNew?'<span class="tag good">NUEVA 24 H</span>':'')+(r.reconsidered?'<span class="tag good">↺ RECUPERADA</span>':'')+'</div>'+
  '<div class="coin-price">'+fmt(r.price)+'</div><div class="coin-metrics"><div class="cm"><small>'+title1+'</small><b>'+v1+'</b></div><div class="cm"><small>'+title2+'</small><b>'+v2+'</b></div><div class="cm"><small>Impulso</small><b style="color:'+(green?'#56f1b2':'#ff99a6')+'">'+trend.toFixed(2)+'%</b></div></div>'+
- '<div class="why">✓ '+escapeHtml((r.why||[]).slice(0,3).join(' · ')||'Aún sin confirmación suficiente')+'</div>'+(risky?'<div class="risk">⚠ '+escapeHtml(risky)+'</div>':'<div class="risk"></div>')+
+ '<div class="why">✓ '+escapeHtml((r.why||[]).slice(0,3).join(' · ')||'Aún sin confirmación suficiente')+(r.setupVersion==='FLOW_V2'&&r.takerBuyPct!=null?' · Flujo comprador '+escapeHtml(r.takerBuyPct)+'%':'')+'</div>'+(risky?'<div class="risk">⚠ '+escapeHtml(risky)+'</div>':'<div class="risk"></div>')+
  '<div class="coin-levels"><div><small>Entrada</small><b>'+fmt(r.entry)+'</b></div><div><small>SL</small><b>'+fmt(r.stop)+'</b></div><div><small>TP1</small><b>'+fmt(r.tp1)+'</b></div><div><small>TP2</small><b>'+fmt(r.tp2)+'</b></div></div>'+
  '<div class="coin-foot"><span>Analizada hace '+age(r.updatedAt)+'</span>'+link(r)+'</div></article>';
 }
@@ -134,6 +145,7 @@ function listing(){
 }
 function outcome(h){
  const o=h.outcome;
+ if(h.shadow)return {text:'◇ Prueba sombra · '+(o==='tp2'?'TP2':o==='tp1'?'TP1':o==='sl'?'SL':o==='expired'?'Expirada':'Pendiente'),cls:''};
  if(o==='tp2')return {text:'✓ TP2 verificado',cls:'good'};
  if(o==='tp1')return {text:h.closedAt?'✓ TP1 verificado':'✓ TP1 tocado · abierta',cls:'good'};
  if(o==='sl')return {text:'✕ Stop loss',cls:'bad'};
@@ -143,19 +155,31 @@ function outcome(h){
  return {text:'En comprobación',cls:''};
 }
 function history(){
- const rows=Array.isArray(db.history)?db.history:[],spot=rows.filter(x=>x.kind==='spot'),count=o=>spot.filter(x=>x.outcome===o).length;
+ const rows=Array.isArray(db.history)?db.history.filter(x=>!x.shadow):[],spot=rows.filter(x=>x.kind==='spot'),count=o=>spot.filter(x=>x.outcome===o).length;
  const tp1=spot.filter(x=>x.outcome==='tp1'&&x.closedAt).length,tp2=count('tp2'),sl=count('sl'),amb=count('ambiguous');
  byId('performance').innerHTML=[['TP1 verificados',tp1,'green'],['TP2 verificados',tp2,'green'],['SL verificados',sl,''],['Ambiguos',amb,'yellow']].map(a=>'<div class="stat"><b class="'+a[2]+'">'+a[1]+'</b><small>'+a[0]+'</small></div>').join('');
  byId('history').innerHTML=rows.length?rows.slice(0,22).map(h=>{const o=outcome(h);return '<div class="entry"><div><strong>'+escapeHtml(h.symbol||h.name)+'</strong><div><span>'+time(h.detectedAt)+' · Entrada '+fmt(h.entry)+'</span></div></div><div class="statusText '+o.cls+'">'+o.text+'</div></div>'}).join(''):'<div class="placeholder">Todavía no hay señales archivadas.</div>';
  const ev=Array.isArray(db.events)?db.events:[];
  byId('events').innerHTML=ev.length?ev.slice(0,14).map(e=>'<div class="entry"><div><strong>'+escapeHtml(e.symbol)+'</strong><div><span>'+time(e.at)+'</span></div></div><div class="statusText '+(e.to==='reject'?'bad':'good')+'">'+escapeHtml(e.from==='reject'?'DESCARTADA ↗ '+(statusNames[e.to]||e.to):(statusNames[e.from]||e.from)+' → '+(statusNames[e.to]||e.to))+'</div></div>').join(''):'<div class="placeholder">Aún no hay transiciones guardadas.</div>';
 }
+function renderBrain(){
+ const model=db.intelligence||{},legacy=model.legacy||{},current=model.current||{};
+ const tiles=[
+ ['Auditoría previa',legacy.sample||0,''],['TP históricos',legacy.wins||0,'green'],['SL históricos',legacy.losses||0,''],
+ ['Modelo FLOW V2',current.sample||0,'green']
+ ];
+ byId('brain').innerHTML=tiles.map(x=>'<div class="stat"><b class="'+x[2]+'">'+x[1]+'</b><small>'+x[0]+'</small></div>').join('');
+ const count=current.sample||0;
+ const base=legacy.sample||0;
+ const pct=base&&Number.isFinite(Number(legacy.observedHitRate))?legacy.observedHitRate+'% de TP1/TP2 frente a SL en señales antiguas':'sin suficiente historial';
+ byId('brainNote').textContent='Modelo anterior: '+pct+'. FLOW V2: '+count+' observaciones cerradas; '+(count<40?'evidencia insuficiente para demostrar precisión':'revisión estadística activa')+'. Las puntuaciones NO indican probabilidad de ganar. DEX mantiene un análisis separado, aún sin auditoría de TP/SL.';
+}
 function render(){
  if(!db)return;
  freshness();
  const a=allItems();byId('statTotal').textContent=a.length;byId('statSignals').textContent=a.filter(x=>x.status==='signal').length;
  byId('statWatch').textContent=a.filter(x=>x.status==='watch').length;byId('statRecovered').textContent=a.filter(x=>x.reconsidered).length;
- highlight();listing();history();
+ renderBrain();highlight();listing();history();
 }
 async function fetchData(){
  const links=['./data/results.json','./public/data/results.json'];
