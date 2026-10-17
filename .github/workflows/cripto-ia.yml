@@ -10,6 +10,7 @@ on:
       - 'server.js'
       - 'futures.js'
       - 'tests/futures.test.js'
+      - 'tests/ui.test.js'
       - 'public/index.html'
       - 'index.html'
       - 'package.json'
@@ -51,6 +52,7 @@ jobs:
           node --check server.js
           node --check futures.js
           node tests/futures.test.js
+          node tests/ui.test.js
           node -e "const fs=require('fs');const s=fs.readFileSync('public/index.html','utf8');const a=s.indexOf('<script>'),b=s.indexOf('</script>',a);if(a<0||b<0)throw Error('Panel sin script');new Function(s.slice(a+8,b));"
 
       - name: Escanear mercado y guardar resultados
