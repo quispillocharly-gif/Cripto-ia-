@@ -61,8 +61,8 @@ select.search{cursor:pointer}.grow{flex:1}.source{font-size:11px;color:#94b2c0;m
 <div class="monitor"><div class="monitor-title">CENTRO DE ANÁLISIS · ESTADO</div><div class="monitor-main"><b id="monitorAge">—</b><span id="monitorStatus">Conectando al radar</span></div><div class="monitor-small" id="monitorDetail">Consultando los últimos resultados publicados…</div><div class="monitor-small" id="sourceHealth"></div></div></section>
 <div class="summary"><div class="stat"><b id="statTotal">—</b><small>Activos del último escaneo</small></div><div class="stat"><b class="green" id="statBuy">—</b><small>↑ Compras</small></div><div class="stat"><b class="yellow" id="statWatch">—</b><small>En vigilancia</small></div><div class="stat"><b style="color:#ff9fac" id="statSell">—</b><small>↓ Ventas</small></div></div>
 <div class="monitor" id="coverage" style="margin-bottom:17px"><div class="monitor-title">COBERTURA BINANCE</div><div class="monitor-small">Esperando el catálogo completo…</div></div><section class="section" id="learning">
-<h2 class="section-title">Motor inteligente · FLOW V2</h2>
-<p class="section-sub">No considera el puntaje como probabilidad. Para Spot evalúa tanto las compras como las ventas ejecutadas, el rechazo de velas y el spread antes de confirmar una señal. Aprende estadísticamente de los resultados cerrados; el modelo necesita suficientes observaciones nuevas antes de valorar su precisión.</p>
+<h2 id="learningHeading" class="section-title">Motor inteligente · FLOW V2</h2>
+<p id="learningDescription" class="section-sub">No considera el puntaje como probabilidad. Para Spot evalúa tanto las compras como las ventas ejecutadas, el rechazo de velas y el spread antes de confirmar una señal. Aprende estadísticamente de los resultados cerrados; el modelo necesita suficientes observaciones nuevas antes de valorar su precisión.</p>
 <div id="brain" class="summary" style="margin-bottom:9px">
 <div class="stat"><b>—</b><small>Evaluaciones comprobadas</small></div>
 <div class="stat"><b>—</b><small>TP históricos</small></div>
@@ -181,16 +181,32 @@ function history(){
  byId('events').innerHTML=ev.length?ev.slice(0,14).map(e=>'<div class="entry"><div><strong>'+escapeHtml(e.symbol)+'</strong><div><span>'+time(e.at)+'</span></div></div><div class="statusText '+(e.to==='reject'?'bad':'good')+'">'+escapeHtml(e.from==='reject'?'DESCARTADA ↗ '+(statusNames[e.to]||e.to):(statusNames[e.from]||e.from)+' → '+(statusNames[e.to]||e.to))+'</div></div>').join(''):'<div class="placeholder">Aún no hay transiciones guardadas.</div>';
 }
 function renderBrain(){
+ if(mode==='futures'){
+   byId('learningHeading').textContent='Motor Futures · LONG / SHORT independiente';
+   byId('learningDescription').textContent='Analiza velas de contratos perpetuos USDⓈ-M, presión agresiva, volumen, RSI, rupturas, funding y spread. No ejecuta operaciones, no ofrece apalancamiento y no mezcla estadísticas Spot.';
+   const perf=db.futuresPerformance||{},long=perf.LONG||{},short=perf.SHORT||{};
+   const tiles=[['Señales LONG',long.all||0,'green'],['Señales SHORT',short.all||0,''],['TP auditados',(long.tp1||0)+(long.tp2||0)+(short.tp1||0)+(short.tp2||0),'green'],
+     ['SL auditados',(long.sl||0)+(short.sl||0),'']];
+   byId('brain').innerHTML=tiles.map(x=>'<div class="stat"><b class="'+x[2]+'">'+x[1]+'</b><small>'+x[0]+'</small></div>').join('');
+   byId('brainNote').textContent=browserFutures?.data?.length?
+     'Futures consultados desde este celular: la lectura no continúa al cerrar la página y esas señales no tienen auditoría histórica en el servidor.':
+     db.futures?.error?'Fuente Futures del servidor: '+db.futures.error+' · Sin señales inventadas.':
+     'Auditoría Futures con velas posteriores a la señal; resultados teóricos y separados. El precio de liquidación depende del apalancamiento y margen de cada cuenta.';
+   return;
+ }
+ byId('learningHeading').textContent=mode==='dex'?'Radar de memecoins · detección temprana':'Motor inteligente · FLOW V2';
+ byId('learningDescription').textContent=mode==='dex'?
+  'Detecta pools nuevos y memecoins con volumen, liquidez y presión compradora/vendedora. Las señales DEX no tienen todavía auditoría propia de TP y SL.':
+  'Spot evalúa la presión compradora y vendedora, la calidad de cierres, la volatilidad y el spread; requiere evidencia histórica independiente.';
  const model=db.intelligence||{},legacy=model.legacy||{},current=model.current||{};
- const tiles=[
- ['Auditoría previa',legacy.sample||0,''],['TP históricos',legacy.wins||0,'green'],['SL históricos',legacy.losses||0,''],
- ['Modelo FLOW V2',current.sample||0,'green']
- ];
+ const tiles=[['Auditoría previa',legacy.sample||0,''],['TP históricos',legacy.wins||0,'green'],['SL históricos',legacy.losses||0,''],
+ ['Modelo FLOW V2',current.sample||0,'green']];
  byId('brain').innerHTML=tiles.map(x=>'<div class="stat"><b class="'+x[2]+'">'+x[1]+'</b><small>'+x[0]+'</small></div>').join('');
- const count=current.sample||0;
- const base=legacy.sample||0;
+ const count=current.sample||0,base=legacy.sample||0;
  const pct=base&&Number.isFinite(Number(legacy.observedHitRate))?legacy.observedHitRate+'% de TP1/TP2 frente a SL en señales antiguas':'sin suficiente historial';
- byId('brainNote').textContent='Modelo anterior: '+pct+'. FLOW V2: '+count+' observaciones cerradas; '+(count<40?'evidencia insuficiente para demostrar precisión':'revisión estadística activa')+'. Las puntuaciones NO indican probabilidad de ganar. DEX mantiene un análisis separado, aún sin auditoría de TP/SL.';
+ byId('brainNote').textContent='Modelo Spot anterior: '+pct+'. FLOW V2: '+count+
+  ' observaciones cerradas; '+(count<40?'evidencia insuficiente para demostrar precisión':'revisión estadística activa')+
+  '. Las puntuaciones NO son probabilidades. DEX mantiene un análisis separado sin auditoría.';
 }
 function render(){
  if(!db)return;
