@@ -82,6 +82,7 @@ select.search{cursor:pointer}.grow{flex:1}.source{font-size:11px;color:#94b2c0;m
 <section class="section"><h2 class="section-title">Descartar y reconsiderar</h2><p class="section-sub">Se guarda el estado de los candidatos observados; si un activo vuelve a reunir condiciones, puede regresar a vigilancia o señal.</p><div class="history" id="events"><div class="placeholder">Sin movimientos de clasificación todavía.</div></div></section>
 <footer class="disclaimer">CRIPTO IA · Versión de radar automatizado, no inteligencia artificial entrenada ni asesoramiento financiero. Análisis basado en reglas matemáticas y datos públicos. VENTA Spot significa vender monedas que posees; no abre posiciones cortas. Los futuros pueden liquidar una posición, generar costes de funding y multiplicar las pérdidas: no se recomienda apalancamiento automático. Los nuevos tokens pueden ser fraudulentos, difíciles de vender o sufrir pérdidas totales. GitHub Actions programa las comprobaciones aproximadamente cada cinco minutos; puede retrasarse y no garantiza actividad ininterrumpida 24/7. Siempre se muestra la antigüedad de los datos para evitar confundirlos con cotizaciones en tiempo real.</footer>
 </div>
+<script src="./futures.js"></script>
 <script>
 'use strict';
 const byId=id=>document.getElementById(id);
@@ -99,7 +100,7 @@ function ordered(list){const rank={signal:0,watch:1,reject:2,catalog:3};return l
 function allItems(){if(!db)return [];return [...(db.spot?.data||[]),...(db.dex?.data||[])]}
 function modeData(){return mode==='futures'&&browserFutures?.data?.length?browserFutures:db?.[mode]||{};}
 function rows(){return ordered(modeData().data||[])}
-function getFresh(){return db?.scanFinished || [db?.spot?.updatedAt,db?.dex?.updatedAt].filter(Boolean).sort().pop()||null}
+function getFresh(){if(mode==='futures'&&browserFutures?.updatedAt)return browserFutures.updatedAt;return db?.scanFinished || [db?.spot?.updatedAt,db?.dex?.updatedAt,db?.futures?.updatedAt].filter(Boolean).sort().pop()||null}
 function freshness(){
  const at=getFresh(),delta=at?Date.now()-Date.parse(at):Infinity;
  const cls=delta<16*60000?'ok':delta<45*60000?'late':'err';
@@ -197,9 +198,9 @@ function render(){
  const a=rows();byId('statTotal').textContent=a.length;byId('statBuy').textContent=a.filter(x=>x.status==='signal'&&x.side==='buy').length;
  byId('statSell').textContent=a.filter(x=>x.status==='signal'&&x.side==='sell').length;
  byId('statWatch').textContent=a.filter(x=>x.status==='watch').length;const cov=modeData().coverage;
- byId('coverage').innerHTML=cov?'<div class="monitor-title">'+(mode==='futures'?'BINANCE FUTURES · CONTRATOS PERPETUOS':'BINANCE SPOT · CATÁLOGO COMPLETO')+'</div><div class="monitor-main"><b>'+cov.catalogueAssets+'</b><span>activos revisados · '+(mode==='futures'?cov.catalogueContracts:cov.cataloguePairs)+' pares/contratos operables</span></div><div class="monitor-small">Análisis con velas: '+cov.detailed+' · Velas insuficientes: '+cov.stale+' · Errores API: '+cov.apiErrors+' · Sin límite de 175 monedas.</div>':'<div class="monitor-title">BINANCE SPOT</div><div class="monitor-small">Esperando el primer escaneo de cobertura completa.</div>';
+ byId('coverage').innerHTML=cov?'<div class="monitor-title">'+(mode==='futures'?'BINANCE FUTURES · CONTRATOS PERPETUOS':'BINANCE SPOT · CATÁLOGO COMPLETO')+'</div><div class="monitor-main"><b>'+(cov.partial?cov.detailed:cov.catalogueAssets)+'</b><span>'+(cov.partial?'revisados en este celular; '+cov.catalogueAssets+' en catálogo':cov.catalogueAssets+' activos revisados')+' · '+(mode==='futures'?cov.catalogueContracts:cov.cataloguePairs)+' pares/contratos</span></div><div class="monitor-small">Análisis con velas: '+cov.detailed+' · Velas insuficientes: '+cov.stale+' · Errores API: '+cov.apiErrors+' · Sin límite de 175 monedas.</div>':'<div class="monitor-title">BINANCE SPOT</div><div class="monitor-small">Esperando el primer escaneo de cobertura completa.</div>';
  byId('futuresNotice').style.display=mode==='futures'?'block':'none';
- byId('futuresMode').textContent=mode==='futures'?(browserFutures?.data?.length?'Datos consultados desde este dispositivo · no siguen al cerrar la página':db.futures?.error?'Fuente de servidor no disponible: '+db.futures.error:'Futures consultados por el servidor'):' ';
+ byId('futuresMode').textContent=mode==='futures'?(futuresConnecting?'Conectando directamente con Binance Futures desde este dispositivo…':browserFutures?.data?.length?'Consulta directa desde tu celular · '+browserFutures.data.length+' contratos analizados · no sigue al cerrar esta pestaña':browserFutures?.error?'No se pudo conectar directamente: '+browserFutures.error:db.futures?.error?'Fuente del servidor no disponible: '+db.futures.error:'Futures consultados por el servidor'):' ';
  renderBrain();highlight();listing();history();
 }
 async function fetchData(){
@@ -224,6 +225,31 @@ async function refresh(){
   byId('monitorDetail').textContent='Error de actualización: '+String(err.message)+'; no se han fabricado señales.';
  } finally{isLoading=false;byId('refresh').disabled=false;}
 }
+async function tryBrowserFutures(){
+ if(mode!=='futures'||futuresConnecting||db?.futures?.data?.length)return;
+ if(browserFutures?.data?.length && Date.now()-Date.parse(browserFutures.updatedAt)<180000)return;
+ if(Date.now()-lastFuturesAttempt<180000)return;
+ lastFuturesAttempt=Date.now();
+ futuresConnecting=true;
+ if(db)render();
+ try{
+   if(!window.CriptoFutures?.scanFutures)throw Error('No se cargó el analizador de Futures');
+   // A mobile browser should not receive the full API-volume workload of the backend.
+   // Query the 30 highest-volume Futures contracts, not the whole market; label partial.
+   const result=await window.CriptoFutures.scanFutures({limit:30});
+   if(!Array.isArray(result.data)||result.data.length===0)throw Error('La API no devolvió contratos evaluables');
+   browserFutures={
+     data:result.data,updatedAt:new Date().toISOString(),source:'Binance Futures · lectura directa del dispositivo',
+     error:null,coverage:result.coverage
+   };
+ }catch(e){
+   browserFutures={data:[],updatedAt:null,source:'Binance Futures · lectura del dispositivo',
+     error:String(e?.message||e),coverage:null};
+ }finally{
+   futuresConnecting=false;
+   if(mode==='futures'&&db)render();
+ }
+}
 function setMode(m){mode=m;visible=30;byId('tabSpot').classList.toggle('active',m==='spot');byId('tabDex').classList.toggle('active',m==='dex');byId('tabFutures').classList.toggle('active',m==='futures');if(db)render();if(m==='futures')tryBrowserFutures();}
 byId('tabSpot').onclick=()=>setMode('spot');byId('tabDex').onclick=()=>setMode('dex');byId('tabFutures').onclick=()=>setMode('futures');
 byId('filter').onchange=()=>{filter=byId('filter').value;visible=30;if(db)listing()};
@@ -233,6 +259,7 @@ byId('refresh').onclick=refresh;
 refresh();
 setInterval(refresh,30000);
 setInterval(()=>{if(db)freshness()},20000);
+setInterval(()=>{if(mode==='futures'&&!document.hidden)tryBrowserFutures()},180000);
 </script>
 </body>
 </html>
